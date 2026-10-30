@@ -1,0 +1,2 @@
+task_id,owner,tool_or_model,assisted_function,files,verification_plan,actual_verification,result,evidence,limitations
+SETUP,Avgust,Codex,planning_and_repo_templates,starter_package,Review against full task and existing repo,Full task and existing repo unavailable,PENDING,,No app functionality implemented

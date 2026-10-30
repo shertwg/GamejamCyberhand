@@ -1,0 +1,16 @@
+.godot/
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.apk
+*.aab
+*.pck
+builds/
+work/
+*.tmp
+.DS_Store
+Thumbs.db
+# Сохранять Godot .uid и исходные .import: не игнорировать их общим правилом.
+# export_presets.cfg коммитить только после проверки на пароли и локальные пути.

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "level_id": "repair-2",
+  "active_ms": 90000,
+  "attempts": 5,
+  "successes": 4,
+  "unwanted_both_ms": 1500,
+  "scored_window_ms": 30000,
+  "median_reaction_ms": 420,
+  "hold_in_target_ms": 8000,
+  "hold_target_ms": 10000,
+  "source": "replay"
+}
