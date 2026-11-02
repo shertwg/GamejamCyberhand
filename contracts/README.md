@@ -2,13 +2,13 @@
 
 Это НЕ API Моторики и НЕ медицинские данные. Не менять формат молча. После получения полного ТЗ сверить все поля.
 
-`InputSource → InputFrame → Decoder → ControlState → Gameplay → GameEvent → SessionSummary → UI / LocalStore`.
+`InputSource → InputFrame → Decoder → ControlCommand → Gameplay → GameEvent → SessionSummary → UI / LocalStore`.
 
 - InputSource подменяемый: ручная панель, клавиши для разработки, воспроизведение трассы; позже возможен настоящий адаптер.
 - InputFrame: schema_version=1, seq — возрастающий номер, timestamp_ms — монотонное время от начала потока, channel_a/channel_b — нормализованные 0..1, connected, source.
 - Для connected=false оба канала 0, команды сбрасываются; игра приостанавливается. Устаревший/невалидный кадр не вызывает захват. Начальный таймаут потока — 250 ms, технический параметр команды, подлежит проверке.
 - Decoder хранит отдельные пороги включения/выключения каждого канала (порог выключения ниже включения). Начальные значения из тестовых настроек, не клинические нормы.
-- ControlState: REST, OPEN, CLOSE, BOTH. Пока предлагаем A→OPEN, B→CLOSE; переназначение хранится в профиле. BOTH приостанавливает действие с подсказкой; при выходе команда пересчитывается.
+- ControlCommand: direction — REST, OPEN, CLOSE или BOTH; intensity — нормализованное значение 0..1. Для REST/BOTH intensity=0. Decoder использует независимые пороги включения/выключения с гистерезисом; после активации сила команды вычисляется из значения канала относительно его порога и насыщается на 1. Игра использует intensity для пропорциональной скорости открытия/закрытия. A→OPEN, B→CLOSE; переназначение хранится в профиле. BOTH безопасно останавливает действие с подсказкой; после выхода команда пересчитывается.
 - UI отправляет start_session(level_id), pause, resume, retry, exit. UI не двигает захват напрямую.
 - Gameplay принимает состояние и выдаёт события action_started, action_succeeded, action_failed, level_completed. У события есть session_id, attempt_id, level_id, timestamp_ms, reason; повторная доставка того же event_id не должна удваивать счёт.
 - SessionSummary: schema_version, level_id, active_ms, attempts, successes, unwanted_both_ms, scored_window_ms, median_reaction_ms или null, hold_in_target_ms, hold_target_ms, source. Нулевой знаменатель → null, не 0% и не NaN.

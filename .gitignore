@@ -1,4 +1,6 @@
 .godot/
+/evidence/*.translation
+/evidence/*.csv.import
 .env
 .env.*
 !.env.example
