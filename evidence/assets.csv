@@ -1,2 +1,5 @@
 path,kind,author_or_rightsholder,source_url,license_or_basis,restrictions,added_by,verified_by
 assets/icons/app_icon.svg,vector,"shertwg / Codex",,Original SVG placeholder created for the project,Replace after final visual identity is approved,August,August
+game/gameplay/course.gd,procedural_visuals,shertwg / Codex,,Original geometric course and gripper drawn in GDScript; no external assets,Prototype visuals; desktop capture 2026-11-05,August,OpenCode DeepSeek V4.1 Flash Free
+game/ui/manual_pad.gd,procedural_UI,shertwg / Codex,,Original manual emulator pad drawn in GDScript using Godot built-in font; no external assets,Prototype UI; desktop capture 2026-11-05,August,OpenCode DeepSeek V4.1 Flash Free
+game/gameplay/prototype.gd,procedural_UI,shertwg / Codex,,Original UI and layout drawn in GDScript with Godot built-in theme and font; no external assets,Prototype UI; desktop capture 2026-11-05,August,OpenCode DeepSeek V4.1 Flash Free
