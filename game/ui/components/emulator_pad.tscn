@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://d1emulatorpad01"]
+
+[ext_resource type="Script" path="res://game/ui/manual_pad.gd" id="1_script"]
+
+[node name="EmulatorPad" type="Control"]
+custom_minimum_size = Vector2(0, 92)
+layout_mode = 3
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 92.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("1_script")

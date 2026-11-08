@@ -1,0 +1,71 @@
+[gd_scene load_steps=6 format=3 uid="uid://d1gameview001"]
+
+[ext_resource type="Script" path="res://game/ui/game_view.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://d1hudoverlay01" path="res://game/ui/screens/hud_overlay.tscn" id="2_hud"]
+[ext_resource type="PackedScene" uid="uid://d1emulatorpad01" path="res://game/ui/components/emulator_pad.tscn" id="3_pad"]
+[ext_resource type="PackedScene" uid="uid://d1startscreen01" path="res://game/ui/screens/start_screen.tscn" id="4_start"]
+[ext_resource type="PackedScene" uid="uid://d1resultscreen01" path="res://game/ui/screens/result_screen.tscn" id="5_result"]
+
+[node name="GameView" type="CanvasLayer"]
+script = ExtResource("1_script")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0313726, 0.0666667, 0.113725, 1)
+
+[node name="Margin" type="MarginContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 18
+
+[node name="VBox" type="VBoxContainer" parent="Root/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HudOverlay" parent="Root/Margin/VBox" instance=ExtResource("2_hud")]
+layout_mode = 2
+
+[node name="CourseContainer" type="Control" parent="Root/Margin/VBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="EmulatorPad" parent="Root/Margin/VBox" instance=ExtResource("3_pad")]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ScreenOverlay" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.04, 0.08, 0.88)
+
+[node name="StartScreen" parent="Root/ScreenOverlay" instance=ExtResource("4_start")]
+layout_mode = 1
+
+[node name="ResultScreen" parent="Root/ScreenOverlay" instance=ExtResource("5_result")]
+visible = false
+layout_mode = 1

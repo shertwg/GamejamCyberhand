@@ -42,6 +42,9 @@ $g='D:\Godot\Godot_v4.4.1-stable_win64_console.exe'
 
 Строка `ERROR: Parse JSON failed` в выводе ожидаема — это тест битого сохранения. Тест пишет только `user://smoke_*.json`, профиль игрока не трогает.
 
+**Запуск на Android-эмуляторе:**
+Android-эмулятор на ПК запускать только с флагом `-gpu host`. Софтверный `swiftshader_indirect` упирается в лимит uniform-векторов GLES3 шейдера Godot 4.4 (`GL_MAX_FRAGMENT_UNIFORM_VECTORS`), из-за чего приложение не стартует. Проверено на образе `Medium_Phone_D_API37` (API 37, 2400×1080).
+
 ## Завтрашние задачи (по зонам, без пересечений)
 
 - **Август:** свежий APK и прогон на телефоне; подключить `ReplayInputSource` к отладочному меню; актуализировать карточки `planning/team/*` и `AI_PROJECT_CONTEXT.md` под рейнджера.
