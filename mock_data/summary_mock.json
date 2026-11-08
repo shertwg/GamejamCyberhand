@@ -1,0 +1,8 @@
+{
+  "mission_id": "m1_heat",
+  "active_seconds": 40.5,
+  "in_hold_percent": 77.3,
+  "events_count": 23,
+  "adaptation_delta": 0.2,
+  "upgrade_unlocked": "Усиленный захват"
+}
