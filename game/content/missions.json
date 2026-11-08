@@ -1,0 +1,38 @@
+[
+  {
+    "id": "tutorial",
+    "title": "ОБУЧЕНИЕ · КАЛИБРОВКА МАНИПУЛЯТОРА",
+    "description": "Безопасный отсек · Робот-напарник «Маяк»",
+    "off_threshold": 0.40,
+    "on_threshold": 0.55,
+    "width": 0.48,
+    "duration": 10.0
+  },
+  {
+    "id": "repair-1",
+    "title": "МИССИЯ 1 · КЛАПАН ОХЛАЖДЕНИЯ",
+    "description": "Угроза: экстремальная жара · Крупные узлы",
+    "off_threshold": 0.40,
+    "on_threshold": 0.55,
+    "width": 0.40,
+    "duration": 12.0
+  },
+  {
+    "id": "repair-2",
+    "title": "МИССИЯ 2 · ЭНЕРГОЯЧЕЙКА ГЕНЕРАТОРА",
+    "description": "Угроза: пыльная буря · Удержание и перенос",
+    "off_threshold": 0.40,
+    "on_threshold": 0.55,
+    "width": 0.36,
+    "duration": 16.0
+  },
+  {
+    "id": "repair-3",
+    "title": "МИССИЯ 3 · ГЕРМЕТИЗАЦИЯ И МАЯК",
+    "description": "Угроза: ядовитый воздух и шторм · Точная доводка",
+    "off_threshold": 0.40,
+    "on_threshold": 0.55,
+    "width": 0.35,
+    "duration": 20.0
+  }
+]
