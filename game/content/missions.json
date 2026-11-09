@@ -3,8 +3,8 @@
     "id": "tutorial",
     "title": "ОБУЧЕНИЕ · КАЛИБРОВКА МАНИПУЛЯТОРА",
     "description": "Безопасный отсек · Робот-напарник «Маяк»",
-    "off_threshold": 0.40,
-    "on_threshold": 0.55,
+    "off_threshold": 0.35,
+    "on_threshold": 0.60,
     "width": 0.48,
     "duration": 10.0
   },
@@ -21,17 +21,17 @@
     "id": "repair-2",
     "title": "МИССИЯ 2 · ЭНЕРГОЯЧЕЙКА ГЕНЕРАТОРА",
     "description": "Угроза: пыльная буря · Удержание и перенос",
-    "off_threshold": 0.40,
-    "on_threshold": 0.55,
+    "off_threshold": 0.42,
+    "on_threshold": 0.54,
     "width": 0.36,
-    "duration": 16.0
+    "duration": 18.0
   },
   {
     "id": "repair-3",
     "title": "МИССИЯ 3 · ГЕРМЕТИЗАЦИЯ И МАЯК",
     "description": "Угроза: ядовитый воздух и шторм · Точная доводка",
-    "off_threshold": 0.40,
-    "on_threshold": 0.55,
+    "off_threshold": 0.45,
+    "on_threshold": 0.50,
     "width": 0.35,
     "duration": 20.0
   }
