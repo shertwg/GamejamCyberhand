@@ -1,4 +1,7 @@
 .godot/
+__pycache__/
+*.pyc
+log_summary_*.md
 /evidence/*.translation
 /evidence/*.csv.import
 .env
