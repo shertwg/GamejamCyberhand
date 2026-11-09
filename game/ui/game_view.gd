@@ -20,12 +20,19 @@ var coordinator: SessionCoordinator
 
 
 func _ready() -> void:
+	root.theme = preload("res://game/ui/terminal_style.gd").make_theme()
+	start_screen.mission_selected.connect(func(id):
+		if coordinator != null:
+			coordinator.select_level(id)
+			_refresh_start_screen()
+	)
 	start_screen.start_pressed.connect(_on_start_pressed)
 	start_screen.cycle_mission_pressed.connect(_on_cycle_mission_pressed)
 	start_screen.hand_toggle_pressed.connect(_on_hand_toggle_pressed)
 	hud_overlay.resume_pressed.connect(_on_resume_pressed)
 	result_screen.retry_pressed.connect(_on_retry_pressed)
 	result_screen.next_pressed.connect(_on_next_pressed)
+	result_screen.ship_pressed.connect(show_start_screen)
 	emulator_pad.channels_changed.connect(_on_pad_channels_changed)
 
 
@@ -36,6 +43,7 @@ func bind_coordinator(p_coordinator: SessionCoordinator) -> void:
 			if coordinator._course.get_parent() != null:
 				coordinator._course.get_parent().remove_child(coordinator._course)
 			course_container.add_child(coordinator._course)
+		coordinator._course.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	
 	coordinator.command_updated.connect(_on_command_updated)
 	coordinator.mission_started.connect(_on_mission_started)
@@ -49,6 +57,7 @@ func bind_coordinator(p_coordinator: SessionCoordinator) -> void:
 
 
 func show_start_screen() -> void:
+	$Root/Margin.visible = false
 	if coordinator != null:
 		coordinator._playing = false
 	if screen_overlay != null:
@@ -71,6 +80,8 @@ func _refresh_start_screen() -> void:
 		var unlocked_cnt: int = coordinator._unlocked().size()
 		var is_left: bool = coordinator.is_hand_left()
 		start_screen.set_mission_info(cfg, unlocked_cnt, is_left)
+		start_screen.set_mission_cards(LevelConfig.ordered_ids(), coordinator._unlocked(), coordinator._level_id)
+		start_screen.set_ship_progress(coordinator._save.get("completed_levels", []), coordinator._unlocked(), coordinator._level_id)
 		if hud_overlay != null:
 			hud_overlay.update_mission(Copy.HEADER_TITLE, Copy.HEADER_SUBTITLE)
 
@@ -134,6 +145,7 @@ func _on_command_updated(command) -> void:
 
 
 func _on_mission_started(level_id: String, config) -> void:
+	$Root/Margin.visible = true
 	if screen_overlay != null:
 		screen_overlay.visible = false
 	if start_screen != null:
@@ -145,16 +157,18 @@ func _on_mission_started(level_id: String, config) -> void:
 		emulator_pad.clear()
 	var sub: String = Copy.TUTORIAL_HINTS[1] if level_id == "tutorial" else (config.title + " · " + config.hazard_subtitle)
 	if hud_overlay != null:
-		hud_overlay.update_mission(Copy.HEADER_TITLE, sub)
+		hud_overlay.update_mission(Copy.COOLANT_TITLE if level_id == "repair-1" else Copy.HEADER_TITLE, Copy.COOLANT_HINT if level_id == "repair-1" else sub)
 		hud_overlay.update_time(0.0)
 
 
-func _on_mission_tick(active_seconds: float, _in_hold_zone: bool) -> void:
+func _on_mission_tick(active_seconds: float, in_hold_zone: bool) -> void:
 	if hud_overlay != null:
 		hud_overlay.update_time(active_seconds)
+		hud_overlay.update_hold(in_hold_zone)
 
 
 func _on_mission_completed(summary, adaptation: Dictionary) -> void:
+	$Root/Margin.visible = false
 	if screen_overlay != null:
 		screen_overlay.visible = true
 	if start_screen != null:

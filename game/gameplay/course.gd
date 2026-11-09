@@ -121,19 +121,158 @@ func _collides(point: Vector2) -> bool:
 	return false
 
 
+const PX := 3.0
+
+
+func _px_rect(pos: Vector2, sz: Vector2, color: Color) -> void:
+	var p := pos.snapped(Vector2(PX, PX))
+	var s := sz.snapped(Vector2(PX, PX))
+	draw_rect(Rect2(p, s), color)
+
+
+func _px_box(pos: Vector2, sz: Vector2, fill_col: Color, border_col: Color) -> void:
+	var p := pos.snapped(Vector2(PX, PX))
+	var s := sz.snapped(Vector2(PX, PX))
+	draw_rect(Rect2(p, s), fill_col)
+	draw_rect(Rect2(p, Vector2(s.x, PX)), border_col)
+	draw_rect(Rect2(Vector2(p.x, p.y + s.y - PX), Vector2(s.x, PX)), border_col)
+	draw_rect(Rect2(p, Vector2(PX, s.y)), border_col)
+	draw_rect(Rect2(Vector2(p.x + s.x - PX, p.y), Vector2(PX, s.y)), border_col)
+
+
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color("101d30"))
-	# Stabilization / hold zone in ship bay
+	draw_rect(Rect2(Vector2.ZERO, size), Color("0a1420"))
+	if current_level_id == "repair-1":
+		_draw_cooling_housing()
+	for x in range(0, int(size.x), 36):
+		for y in range(0, int(size.y), 36):
+			_px_rect(Vector2(x, y), Vector2(PX, PX), Color(0.2, 0.45, 0.55, 0.12))
+	_px_box(Vector2.ZERO, size, Color.TRANSPARENT, Color("224263"))
+	# 1. Pixel-art Hold Zone with holographic dither and corner brackets
 	var hold_rect := Rect2(hold_zone.position * size, hold_zone.size * size)
-	draw_rect(hold_rect, Color(0.16, 0.45, 0.40, 0.28))
-	draw_rect(hold_rect, Color("3caea3"), false, 1.5)
+	var in_zone := is_in_hold_zone()
+	var zone_accent := Color("8af0d4") if in_zone else Color("3caea3")
+	# Dither grid
+	for dx in range(int(hold_rect.position.x), int(hold_rect.end.x), 6):
+		for dy in range(int(hold_rect.position.y), int(hold_rect.end.y), 6):
+			if (int(dx / 6) + int(dy / 6)) % 2 == 0:
+				_px_rect(Vector2(dx, dy), Vector2(PX, PX), Color(zone_accent, 0.28 if in_zone else 0.10))
+	# Corner brackets ┌ ┐ └ ┘
+	var b_len := 15.0
+	var hp := hold_rect.position.snapped(Vector2(PX, PX))
+	var he := hold_rect.end.snapped(Vector2(PX, PX))
+	_px_rect(hp, Vector2(b_len, PX), zone_accent)
+	_px_rect(hp, Vector2(PX, b_len), zone_accent)
+	_px_rect(Vector2(he.x - b_len, hp.y), Vector2(b_len, PX), zone_accent)
+	_px_rect(Vector2(he.x - PX, hp.y), Vector2(PX, b_len), zone_accent)
+	_px_rect(Vector2(hp.x, he.y - PX), Vector2(b_len, PX), zone_accent)
+	_px_rect(Vector2(hp.x, he.y - b_len), Vector2(PX, b_len), zone_accent)
+	_px_rect(Vector2(he.x - b_len, he.y - PX), Vector2(b_len, PX), zone_accent)
+	_px_rect(Vector2(he.x - PX, he.y - b_len), Vector2(PX, b_len), zone_accent)
+
+	# 2. Pixel-art Obstacles (Hazard bulkheads with stepped diagonal stripes)
 	for wall in active_walls:
-		draw_rect(Rect2(wall.position * size, wall.size * size), Color("df9675"))
-	# Right airlock / repair socket
-	draw_rect(Rect2(Vector2(0.94, 0) * size, Vector2(0.06, 1) * size), Color("285d5b"))
-	var center := player * size
-	var radius := maxf(5.0, minf(HALF.x * size.x, HALF.y * size.y))
-	draw_circle(center, radius, Color("8af0d4"))
-	var jaw_spread := radius * (1.25 if _last_direction == Command.OPEN else (0.65 if _last_direction == Command.CLOSE else 0.95))
-	draw_line(center + Vector2(radius, -jaw_spread), center + Vector2(radius * 1.6, -jaw_spread), Color.WHITE, 2)
-	draw_line(center + Vector2(radius, jaw_spread), center + Vector2(radius * 1.6, jaw_spread), Color.WHITE, 2)
+		var r := Rect2(wall.position * size, wall.size * size)
+		_px_box(r.position, r.size, Color("14232e"), Color("0c161d"))
+		# 45-degree pixel hazard stripes
+		var stripe_w := 12.0
+		for sy in range(int(r.position.y), int(r.end.y), int(stripe_w)):
+			for step_x in range(0, int(r.size.x), int(PX)):
+				var stripe_y: float = sy + step_x
+				if stripe_y >= r.position.y and stripe_y + PX <= r.end.y:
+					_px_rect(Vector2(r.position.x + step_x, stripe_y), Vector2(PX, PX), Color("df9675"))
+		# Outer metallic border and rivets
+		_px_box(r.position, r.size, Color.TRANSPARENT, Color("df9675"))
+		for sy in range(int(r.position.y + 12), int(r.end.y - 12), 24):
+			_px_rect(Vector2(r.position.x + 4, sy), Vector2(PX, PX), Color("8c9d9d"))
+			_px_rect(Vector2(r.end.x - 4 - PX, sy), Vector2(PX, PX), Color("8c9d9d"))
+		# Neon hazard edge facing the passageway
+		var edge_y := r.end.y - PX if wall.position.y == 0.0 else r.position.y
+		_px_rect(Vector2(r.position.x, edge_y), Vector2(r.size.x, PX), Color("ffd166"))
+
+	# 3. Pixel-art Docking Airlock Socket
+	var socket := Rect2(Vector2(0.94, 0) * size, Vector2(0.06, 1) * size)
+	_px_box(socket.position, socket.size, Color("0f242b"), Color("237f85"))
+	# Proximity LED segments (light up as player approaches finish)
+	var approach := clampf((player.x - 0.5) / 0.44, 0.0, 1.0)
+	var total_leds := 8
+	var active_leds := int(approach * total_leds)
+	for i in range(total_leds):
+		var ly := socket.position.y + 18.0 + i * (socket.size.y - 36.0) / total_leds
+		var led_on := i <= active_leds
+		var led_col := Color("8af0d4") if led_on else Color("16373d")
+		_px_rect(Vector2(socket.position.x + 6, ly), Vector2(socket.size.x - 12, 6), led_col)
+	if current_level_id == "repair-1":
+		var gauge := Vector2(socket.get_center().x, size.y * 0.5)
+		var gauge_radius := minf(socket.size.x * 0.34, 24.0)
+		_pixel_disc(gauge, gauge_radius, Color("08111d"))
+		_pixel_disc(gauge, gauge_radius * 0.4, Color("ffd166"))
+		# 4 pixel ticks around gauge
+		for a in [-PI * 0.75, -PI * 0.25, PI * 0.25, PI * 0.75]:
+			var tick_p := gauge + Vector2(cos(a), sin(a)) * (gauge_radius - PX)
+			_px_rect(tick_p, Vector2(PX, PX), Color("8af0d4"))
+
+	# 4. Pixel-art Ranger Manipulator Drone
+	var center := (player * size).snapped(Vector2(PX, PX))
+	var radius := maxf(8.0, minf(HALF.x * size.x, HALF.y * size.y))
+	var accent := Color("ffd166") if blocked else Color("8af0d4")
+
+	# Reactive Thruster Plume (drawn behind drone)
+	var thruster_x := center.x - radius * 1.3
+	_px_rect(Vector2(thruster_x - PX * 2, center.y - PX), Vector2(PX * 2, PX * 2), Color("ffffff"))
+	_px_rect(Vector2(thruster_x - PX * 4, center.y - PX * 1.5), Vector2(PX * 2, PX * 3), Color("ffd166"))
+	_px_rect(Vector2(thruster_x - PX * 7, center.y - PX), Vector2(PX * 3, PX * 2), Color("df9675"))
+	_px_rect(Vector2(thruster_x - PX * 10, center.y - PX * 0.5), Vector2(PX * 3, PX), Color(0.3, 0.5, 0.6, 0.4))
+
+	# Drone Armored Hull
+	var hull_w := radius * 1.8
+	var hull_h := radius * 1.4
+	var hull_pos := Vector2(center.x - hull_w * 0.5, center.y - hull_h * 0.5)
+	_px_box(hull_pos, Vector2(hull_w, hull_h), Color("152632"), Color("224263"))
+	_px_rect(Vector2(hull_pos.x + PX, hull_pos.y + PX), Vector2(hull_w - PX * 2, PX), Color("3caea3"))
+
+	# Sensor Eye / Visor
+	var eye_sz := Vector2(PX * 2, PX * 2)
+	var eye_pos := Vector2(center.x + PX, center.y - PX)
+	_px_rect(eye_pos, eye_sz, accent)
+	_px_rect(eye_pos, Vector2(PX, PX), Color.WHITE)
+
+	# Robotic Manipulator Claws
+	var claw_spread := radius * (1.35 if _last_direction == Command.OPEN else (0.35 if _last_direction == Command.CLOSE else 0.85))
+	var claw_root_x := center.x + hull_w * 0.45
+	for side in [-1.0, 1.0]:
+		var elbow_p := Vector2(claw_root_x + PX * 2, center.y + claw_spread * side * 0.6)
+		var tip_p := Vector2(elbow_p.x + PX * 3, center.y + claw_spread * side)
+		_px_rect(Vector2(claw_root_x, center.y + PX * side), Vector2(PX * 2, PX), accent)
+		_px_rect(elbow_p, Vector2(PX * 2, PX * 2), Color("237f85"))
+		_px_rect(tip_p, Vector2(PX * 2, PX), accent)
+		_px_rect(Vector2(tip_p.x + PX, tip_p.y + (PX if side < 0 else -PX)), Vector2(PX, PX), Color("ffd166"))
+
+	# Magnetic arc between claws when OPEN
+	if _last_direction == Command.OPEN:
+		_px_rect(Vector2(claw_root_x + PX * 3, center.y - PX), Vector2(PX, PX * 2), Color(accent, 0.6))
+
+
+func _draw_cooling_housing() -> void:
+	# Pixel-art cooling conduits and background radiator plates
+	for y in [8.0, size.y - 16.0]:
+		_px_box(Vector2(0, y), Vector2(size.x, 8.0), Color("223e4a"), Color("152632"))
+		_px_rect(Vector2(0, y + 2), Vector2(size.x, PX), Color("3caea3"))
+		for x in range(16, int(size.x), 72):
+			_px_box(Vector2(x, y - 2), Vector2(8, 12), Color("3caea3"), Color("152632"))
+	for x in range(24, int(size.x * 0.91), 54):
+		var plate_h := maxf(32.0, size.y - 48.0)
+		_px_box(Vector2(x, 24), Vector2(36, plate_h), Color("0d1c26"), Color("122736"))
+		for py in range(32, int(size.y - 32), 12):
+			_px_rect(Vector2(x + 6, py), Vector2(24, PX), Color(0.2, 0.45, 0.55, 0.25))
+
+
+func _pixel_disc(center: Vector2, radius: float, color: Color) -> void:
+	# Square 3px cells; the rendered art never participates in collisions.
+	var step := 3.0
+	var origin := (center - Vector2.ONE * radius).snapped(Vector2.ONE * step)
+	for y in range(ceili(radius * 2 / step) + 1):
+		for x in range(ceili(radius * 2 / step) + 1):
+			var point := origin + Vector2(x,y) * step
+			if (point + Vector2.ONE * step * 0.5).distance_squared_to(center) <= radius * radius:
+				draw_rect(Rect2(point,Vector2.ONE * step),color)

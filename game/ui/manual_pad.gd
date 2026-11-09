@@ -2,6 +2,13 @@ extends Control
 ## Explicit manual emulator; supports independent fingers, desktop mouse,
 ## left/right hand mirroring, and visual ON/OFF threshold indicators.
 signal channels_changed(a: float, b: float)
+const Copy = preload("res://game/content/copy_catalog.gd")
+var _visual := Vector2.ZERO
+
+func _process(delta: float) -> void:
+	_visual = _visual.lerp(_values, minf(1, delta * 18))
+	if _visual.distance_to(_values) > 0.001: queue_redraw()
+
 var _touches: Dictionary = {}
 var _mouse_channel: int = -1
 var _values := Vector2.ZERO
@@ -92,28 +99,75 @@ func _publish() -> void:
 
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
+	var px := 3.0
 	for channel in range(2):
 		var rect := _pad_rect(channel)
+		var accent := Color("8af0d4") if channel == 0 else Color("df9675")
+		var is_both := _values.x > 0 and _values.y > 0
 		var active_val := _values[channel]
 		var on_th := on_a if channel == 0 else on_b
 		var off_th := off_a if channel == 0 else off_b
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color("237f85") if active_val >= on_th else Color("263e58")
-		style.border_color = Color("8af0d4") if active_val >= on_th else Color("3b5d7a")
-		style.set_border_width_all(2)
-		style.set_corner_radius_all(14)
-		draw_style_box(style, rect)
-		# Draw live signal meter bar along bottom of button with ON/OFF threshold ticks
-		var meter_rect := Rect2(rect.position.x + 14.0, rect.end.y - 16.0, maxf(20.0, rect.size.x - 28.0), 8.0)
-		draw_rect(meter_rect, Color("101d30"))
-		if active_val > 0.0:
-			var fill_w := meter_rect.size.x * clampf(active_val, 0.0, 1.0)
-			draw_rect(Rect2(meter_rect.position, Vector2(fill_w, meter_rect.size.y)), Color("8af0d4"))
-		var off_x := meter_rect.position.x + meter_rect.size.x * off_th
-		var on_x := meter_rect.position.x + meter_rect.size.x * on_th
-		draw_line(Vector2(off_x, meter_rect.position.y - 2.0), Vector2(off_x, meter_rect.end.y + 2.0), Color("ffd166"), 2.0)
-		draw_line(Vector2(on_x, meter_rect.position.y - 3.0), Vector2(on_x, meter_rect.end.y + 3.0), Color.WHITE, 2.0)
-		var text := "A · OPEN ↑ [ЭМУЛ]" if channel == 0 else "B · CLOSE ↓ [ЭМУЛ]"
-		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
-		draw_string(font, rect.get_center() + Vector2(-text_size.x / 2.0, 2.0), text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
+		var is_pressed := active_val >= on_th
+		var press_offset := Vector2(px, px) if is_pressed else Vector2.ZERO
+
+		# 1. Beveled 3D Retro Pixel Button
+		var b_rect := Rect2(rect.position + press_offset, rect.size - press_offset)
+		var bg_col := (Color("1d5e63") if channel == 0 else Color("8a4325")) if is_pressed else Color("12263a")
+		draw_rect(b_rect, bg_col)
+
+		# Pixel Border & 3D Bevel
+		var hi_col := Color("ffffff") if is_pressed else (Color("ffd166") if is_both else accent)
+		var shadow_col := Color("08111d")
+		# Top & Left highlight
+		draw_rect(Rect2(b_rect.position, Vector2(b_rect.size.x, px)), hi_col)
+		draw_rect(Rect2(b_rect.position, Vector2(px, b_rect.size.y)), hi_col)
+		# Bottom & Right shadow
+		draw_rect(Rect2(Vector2(b_rect.position.x, b_rect.end.y - px), Vector2(b_rect.size.x, px)), shadow_col)
+		draw_rect(Rect2(Vector2(b_rect.end.x - px, b_rect.position.y), Vector2(px, b_rect.size.y)), shadow_col)
+
+		# BOTH hazard stripes on border
+		if is_both:
+			for hx in range(int(b_rect.position.x), int(b_rect.end.x), 12):
+				draw_rect(Rect2(hx, b_rect.position.y, px * 2, px), Color("ffd166"))
+				draw_rect(Rect2(hx, b_rect.end.y - px, px * 2, px), Color("ffd166"))
+
+		# 2. Segmented Pixel VU-Meter (Discrete Blocks)
+		var meter_margin := 16.0
+		var meter_w := b_rect.size.x - meter_margin * 2
+		var meter_h := 8.0
+		var meter_pos := Vector2(b_rect.position.x + meter_margin, b_rect.end.y - 18.0)
+		draw_rect(Rect2(meter_pos - Vector2(px, px), Vector2(meter_w + px * 2, meter_h + px * 2)), Color("091420"))
+
+		var num_blocks := 14
+		var block_w := (meter_w - (num_blocks - 1) * 2.0) / float(num_blocks)
+		var lit_count := int(clampf(active_val, 0.0, 1.0) * num_blocks)
+		for b in range(num_blocks):
+			var bx := meter_pos.x + b * (block_w + 2.0)
+			var b_ratio := float(b + 1) / float(num_blocks)
+			var lit := b < lit_count
+			var seg_col := Color("142836")
+			if lit:
+				if b_ratio >= on_th:
+					seg_col = Color("ffffff") if channel == 0 else Color("ffd166")
+				else:
+					seg_col = accent
+			draw_rect(Rect2(Vector2(bx, meter_pos.y), Vector2(block_w, meter_h)), seg_col)
+
+		# Pixel Threshold Arrow Markers ▲
+		var off_px := meter_pos.x + meter_w * off_th
+		var on_px := meter_pos.x + meter_w * on_th
+		var mark_y := meter_pos.y + meter_h
+		# OFF marker (amber)
+		draw_rect(Rect2(Vector2(off_px - 2, mark_y + 2), Vector2(4, 2)), Color("ffd166"))
+		draw_rect(Rect2(Vector2(off_px - 1, mark_y + 4), Vector2(2, 2)), Color("ffd166"))
+		# ON marker (white)
+		draw_rect(Rect2(Vector2(on_px - 2, mark_y + 2), Vector2(4, 2)), Color.WHITE)
+		draw_rect(Rect2(Vector2(on_px - 1, mark_y + 4), Vector2(2, 2)), Color.WHITE)
+
+		# 3. Text Label
+		var text := (Copy.PAD_A if channel == 0 else Copy.PAD_B) + "  " + Copy.EMULATOR
+		if is_both:
+			text = Copy.BOTH_WARNING
+		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+		var text_pos := b_rect.get_center() + Vector2(-text_size.x / 2.0, -1.0)
+		draw_string(font, text_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.WHITE)

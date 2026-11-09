@@ -92,3 +92,45 @@ static func reason_text(reason: StringName) -> String:
 			return "канал B"
 		_:
 			return String(reason)
+
+
+# Terminal interface copy; mission story remains in LevelConfig.
+const START = "Начать миссию  →"
+const RETRY = "Повторить маршрут"
+const NEXT = "Следующий ремонт  →"
+const RESUME = "Продолжить"
+const SUCCESS = "КОНТУР ВОССТАНОВЛЕН"
+const BRIEFING_NOTE = "Отпустите обе кнопки, чтобы отдохнуть: движение и таймер остановятся. После старта подтвердите готовность кнопкой «Продолжить»."
+const CYCLE = "Сменить миссию · доступно %d"
+const HAND = "Раскладка: %s рука  ⇄"
+const HAND_LEFT = "левая"
+const HAND_RIGHT = "правая"
+const PAD_A = "A · OPEN ↑"
+const PAD_B = "B · CLOSE ↓"
+const EMULATOR = "[ЭМУЛ]"
+const BOTH_WARNING = "A + B · ПРИВОД ЗАБЛОКИРОВАН"
+const ACTIVE_TIME = "ВРЕМЯ В ДВИЖЕНИИ  %06.1f с"
+const HOLD_ACTIVE = "◉  В зоне стабилизации"
+const HOLD_IDLE = "○  Зона стабилизации впереди"
+const LOCKED = "ЗАКРЫТО"
+const AVAILABLE = "ДОСТУПНО"
+const SELECTED = "ВЫБРАНО"
+const METRIC_BOTH = "Встречный сигнал"
+const METRIC_HOLD = "Точность удержания"
+const NO_DATA = "Нет данных"
+const LOG_TITLE = "ЖУРНАЛ ЭКСПЕДИЦИИ"
+const RESULT_NOTE = "Показатели игры на эмуляторе, не медицинская оценка."
+
+const MISSION_SHORT = {"tutorial": "Обучение", "repair-1": "Контур охлаждения", "repair-2": "Генератор", "repair-3": "Герметизация и маяк"}
+
+const SHIP_TITLE = "МАЯК · ПУТЬ ДОМОЙ"
+const SHIP_SUBTITLE = "Аварийная посадка. Четыре контура отделяют нас от взлёта."
+const SHIP_MODULES = ["Мастерская", "Охлаждение", "Генератор", "Маяк и шлюз"]
+const REPAIRED = "ВОССТАНОВЛЕНО"
+const SHIP_RETURN = "Вернуться на корабль"
+const COOLANT_TITLE = "КОНТУР ОХЛАЖДЕНИЯ · СЕРВИСНЫЙ ДРОН"
+const COOLANT_HINT = "Доставьте хладагент через заслонки в приёмный шлюз. A — вверх, B — вниз."
+
+const SHIP_DONE = "Готово"
+const SHIP_REPAIR = "Ремонт"
+const SHIP_LOCKED = "Закрыто"

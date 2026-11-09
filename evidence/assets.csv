@@ -3,3 +3,6 @@ assets/icons/app_icon.svg,vector,"shertwg / Codex",,Original SVG placeholder cre
 game/gameplay/course.gd,procedural_visuals,shertwg / Codex,,Original geometric course and gripper drawn in GDScript; no external assets,Prototype visuals; desktop capture 2026-11-05,August,OpenCode DeepSeek V4.1 Flash Free
 game/ui/manual_pad.gd,procedural_UI,shertwg / Codex,,Original manual emulator pad drawn in GDScript using Godot built-in font; no external assets,Prototype UI; desktop capture 2026-11-05,August,OpenCode DeepSeek V4.1 Flash Free
 game/gameplay/prototype.gd,procedural_UI,shertwg / Codex,,Original UI and layout drawn in GDScript with Godot built-in theme and font; no external assets,Prototype UI; desktop capture 2026-11-05,August,OpenCode DeepSeek V4.1 Flash Free
+game/ui/terminal_style.gd,procedural_UI,shertwg / Codex,,Original GDScript styling and drawing; built-in Godot font; no external assets,Desktop visual review; Android not checked,August,Codex
+game/ui/terminal_background.gd,procedural_UI,shertwg / Codex,,Original GDScript styling and drawing; built-in Godot font; no external assets,Desktop visual review; Android not checked,August,Codex
+game/ui/ship_overview.gd,procedural_UI,shertwg / Codex,,Original Godot vector drawing: terrain moon cutaway hull rooms and machinery; no external images,Desktop reviewed; runtime progress controls lights,August,Codex
