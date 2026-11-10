@@ -53,6 +53,7 @@ var _skip_gameplay_frame: bool = true
 var _last_status_key: String = ""
 
 var _course
+var repair_task: Control
 
 
 func _ready() -> void:
@@ -115,6 +116,10 @@ func update_host(now_ms: int, delta: float, sample_heartbeat: bool = true) -> vo
 	var skip_gameplay := _skip_gameplay_frame
 	_skip_gameplay_frame = false
 	if _playing and _foreground and _current != null and not skip_gameplay:
+		if is_instance_valid(repair_task):
+			_tracker.record_step(int(round(delta * 1000.0)), _current)
+			repair_task.advance(minf(delta, 0.1), _current)
+			return
 		_tracker.record_step(int(round(delta * 1000.0)), _current,
 			_level_cfg.count_both_as_unwanted, _course.is_in_hold_zone(), _level_cfg.hold_target_ms)
 		_course.advance(delta, _current)
@@ -244,7 +249,8 @@ func _on_level_completed() -> void:
 	_playing = false
 	_channel_a = 0.0
 	_channel_b = 0.0
-	var summary = _tracker.build_summary(int(round(_course.active_seconds * 1000.0)))
+	var seconds: float = repair_task.active_seconds if is_instance_valid(repair_task) else _course.active_seconds
+	var summary = _tracker.build_summary(int(round(seconds * 1000.0)))
 	var adaptation := _finish_progress(summary)
 	mission_completed.emit(summary, {
 		"explanation": adaptation,

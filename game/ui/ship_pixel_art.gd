@@ -2,6 +2,7 @@ extends Control
 ## Drawn into a 250x68 viewport; nearest-neighbor integer scaling only.
 const IDS = ["tutorial", "repair-1", "repair-2", "repair-3"]
 var completed: Array = []
+var spark_phase := 0
 var selected := "repair-1"
 
 func _poly(points: Array, color: String) -> void:
@@ -67,7 +68,7 @@ func _draw() -> void:
 			3:
 				draw_rect(Rect2(x+55,140,57,29),Color("355360"))
 				for j in range(3): draw_line(Vector2(x+64,148+j*6),Vector2(x+100,148+j*6),accent,2)
-		if not repaired:
+		if not repaired and (spark_phase+i*3)%10 < 2:
 			draw_line(Vector2(x+150,140),Vector2(x+145,151),Color("ffd166"),1)
 	# Foreground mineral growths frame the shelter.
 	for x in [25,45,955,977]:

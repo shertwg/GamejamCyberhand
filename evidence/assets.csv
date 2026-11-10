@@ -6,3 +6,24 @@ game/gameplay/prototype.gd,procedural_UI,shertwg / Codex,,Original UI and layout
 game/ui/terminal_style.gd,procedural_UI,shertwg / Codex,,Original GDScript styling and drawing; built-in Godot font; no external assets,Desktop visual review; Android not checked,August,Codex
 game/ui/terminal_background.gd,procedural_UI,shertwg / Codex,,Original GDScript styling and drawing; built-in Godot font; no external assets,Desktop visual review; Android not checked,August,Codex
 game/ui/ship_overview.gd,procedural_UI,shertwg / Codex,,Original Godot vector drawing: terrain moon cutaway hull rooms and machinery; no external images,Desktop reviewed; runtime progress controls lights,August,Codex
+game/ui/ship_pixel_art.gd,procedural_pixel_art,shertwg / Codex,,Original native Godot low-resolution drawing; no third-party raster assets,Nearest integer scaling; desktop viewed,August,Codex
+game/station/station_map.gd,procedural_pixel_art,shertwg / Codex,,"Original Godot drawing for five buildings, terrain, crops, rover companion and rocket takeoff",No external images; visually reviewed on desktop,August,Codex
+game/ui/crash_art.gd,procedural_pixel_art,shertwg / Codex,,Original drawn cutscenes and interiors,Desktop reviewed,August,Codex
+game/ui/campaign_view.gd,procedural_audio,shertwg / Codex,,Original synthesized short navigation and repair cues,Desktop campaign run,August,Codex
+game/gameplay/repair_task.gd,procedural_UI,shertwg / Codex,,"Original drawn valve, grip, phase and waveform devices",Desktop reviewed,August,Codex
+assets/last_light/interiors.png,generated_pixel_art,shertwg / Codex ImageGen,,Original six-room sci-fi atlas generated for this game,Reviewed in Godot desktop,August,Codex
+assets/last_light/cinematics.png,generated_pixel_art,shertwg / Codex ImageGen,,Original four-shot spacecraft atlas generated for this game,Reviewed in Godot desktop,August,Codex
+assets/last_light/objects.png,generated_pixel_sprites,shertwg / Codex ImageGen,,"Original transparent character, instrument, UI and effects atlas",Reviewed in Godot desktop,August,Codex
+assets/last_light/expedition.png,generated_pixel_art,shertwg / Codex ImageGen,,Four original Kerna expedition locations,Reviewed on desktop,August,Codex
+assets/last_light/chapters.png,generated_pixel_art,shertwg / Codex ImageGen,,Four original narrative keyframes,Reviewed on desktop,August,Codex
+assets/last_light/loot.png,generated_pixel_art,shertwg / Codex ImageGen,,Original transparent crafting materials and equipment,Reviewed on desktop,August,Codex
+assets/last_light/ranger_walk.png,generated_pixel_art,shertwg / Codex ImageGen,,Original side and front gait atlas with transparent backdrop,Reviewed on desktop,August,Codex
+assets/last_light/ranger_back.png,generated_pixel_art,shertwg / Codex ImageGen,,Original rear gait atlas with transparent backdrop,Reviewed on desktop,August,Codex
+assets/last_light/audio/*.ogg,procedural_music,shertwg / Codex,,Original deterministic score in tools/compose_last_light.py,15 tracks generated locally,August,Codex
+assets/last_light/audio/voice_*.wav,synthetic_dialogue,shertwg dialogue / Microsoft SAPI,,Local Irina Desktop and Pavel speech for original Russian lines,15 WAV files,August,Codex
+assets/last_light/audio/*.wav (effects),procedural_audio,shertwg / Codex,,Original synthesized Foley and ambience in tools/compose_last_light.py,12 WAV files,August,Codex
+assets/last_light/audio/foot_*.wav,procedural_foley,shertwg / Codex,,"Original synthesized boot heel and sole transients, four surface sets, four samples per set",16 PCM WAV clips checked; desktop played via gait,August,Codex
+assets/last_light/opening.png,generated_pixel_art,shertwg / Codex ImageGen,,Original four-shot interior storyboard atlas,Used in Godot opening,August,Codex
+assets/last_light/audio/opening_mix.ogg,procedural_audio,shertwg / Codex; Microsoft SAPI voices,,Original synchronized stereo sound design and seven synthesized Russian lines,33.00 seconds stereo,August,Codex
+game/ui/life_support_hud.gd,procedural_UI,shertwg / Codex,,Original pixel gauges and three glyphs drawn in Godot,Desktop landscape and portrait capture,August,Codex
+game/ui/garden_plots.gd,procedural_pixel_art,shertwg / Codex,,Original hydroponic props and animated plants using the existing ship palette,Desktop Godot capture,August,Codex

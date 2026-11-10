@@ -245,6 +245,7 @@ func mission_route_checks() -> void:
 
 
 func _run() -> void:
+	GameView.legacy_demo = true
 	# Isolated profile: never touch the player's real user:// progress.
 	const SMOKE_STORE := "user://smoke_profile_v1.json"
 	if FileAccess.file_exists(SMOKE_STORE):

@@ -8,7 +8,13 @@ const HudOverlayScript = preload("res://game/ui/screens/hud_overlay.gd")
 const ResultScreenScript = preload("res://game/ui/screens/result_screen.gd")
 const PadScript = preload("res://game/ui/manual_pad.gd")
 
+const StationState = preload("res://game/station/station_state.gd")
+const Campaign = preload("res://game/ui/campaign_view.gd")
+const RepairTask = preload("res://game/gameplay/repair_task.gd")
+static var legacy_demo := false
 var coordinator: SessionCoordinator
+var station: StationState
+var campaign: Campaign
 
 @onready var root: Control = $Root
 @onready var hud_overlay: HudOverlay = $Root/Margin/VBox/HudOverlay
@@ -30,6 +36,7 @@ func _ready() -> void:
 	start_screen.cycle_mission_pressed.connect(_on_cycle_mission_pressed)
 	start_screen.hand_toggle_pressed.connect(_on_hand_toggle_pressed)
 	hud_overlay.resume_pressed.connect(_on_resume_pressed)
+	hud_overlay.station_pressed.connect(show_start_screen)
 	result_screen.retry_pressed.connect(_on_retry_pressed)
 	result_screen.next_pressed.connect(_on_next_pressed)
 	result_screen.ship_pressed.connect(show_start_screen)
@@ -38,6 +45,9 @@ func _ready() -> void:
 
 func bind_coordinator(p_coordinator: SessionCoordinator) -> void:
 	coordinator = p_coordinator
+	var fixture := not SessionCoordinator.store_path_override.is_empty()
+	station = StationState.new("" if fixture else StationState.DEFAULT_PATH)
+	start_screen.station_panel.bind(station, coordinator._unlocked())
 	if course_container != null and coordinator._course != null:
 		if coordinator._course.get_parent() != course_container:
 			if coordinator._course.get_parent() != null:
@@ -54,12 +64,60 @@ func bind_coordinator(p_coordinator: SessionCoordinator) -> void:
 	coordinator.unlocked_missions_changed.connect(_on_unlocked_missions_changed)
 	
 	_apply_initial_state()
+	if not legacy_demo:
+		_open_campaign()
+
+
+func _open_campaign() -> void:
+	screen_overlay.hide()
+	start_screen.hide()
+	campaign = Campaign.new()
+	root.add_child(campaign)
+	campaign.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	campaign.bind(station, coordinator._unlocked())
+	campaign.job_requested.connect(func(id: String):
+		coordinator.select_level(id)
+		if coordinator._level_id == id:
+			coordinator.start_current_mission()
+	)
+	campaign.resume_requested.connect(_on_resume_pressed)
+	campaign.exit_requested.connect(_leave_repair)
+	campaign.hand_requested.connect(_on_hand_toggle_pressed)
+	emulator_pad.reparent(root, false)
+	emulator_pad.compact = true
+	emulator_pad.custom_minimum_size.y = 58
+	emulator_pad.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	emulator_pad.offset_top = -68
+	emulator_pad.offset_bottom = -10
+	emulator_pad.offset_left = 14
+	emulator_pad.offset_right = -14
+
+
+func _leave_repair(message := "") -> void:
+	station.cancel_job()
+	coordinator._playing = false
+	coordinator.clear_channel_values()
+	var previous := coordinator.repair_task
+	coordinator.repair_task = null
+	campaign.device = null
+	if is_instance_valid(previous):
+		previous.hide()
+		previous.queue_free()
+	emulator_pad.clear()
+	emulator_pad.hide()
+	campaign.offset_bottom = 0
+	campaign.show_room(message)
 
 
 func show_start_screen() -> void:
+	if campaign != null:
+		_leave_repair()
+		return
+	station.cancel_job()
 	$Root/Margin.visible = false
 	if coordinator != null:
 		coordinator._playing = false
+		coordinator.set_channel_values(0.0, 0.0)
 	if screen_overlay != null:
 		screen_overlay.visible = true
 	if start_screen != null:
@@ -80,8 +138,7 @@ func _refresh_start_screen() -> void:
 		var unlocked_cnt: int = coordinator._unlocked().size()
 		var is_left: bool = coordinator.is_hand_left()
 		start_screen.set_mission_info(cfg, unlocked_cnt, is_left)
-		start_screen.set_mission_cards(LevelConfig.ordered_ids(), coordinator._unlocked(), coordinator._level_id)
-		start_screen.set_ship_progress(coordinator._save.get("completed_levels", []), coordinator._unlocked(), coordinator._level_id)
+		start_screen.station_panel.set_unlocked(coordinator._unlocked())
 		if hud_overlay != null:
 			hud_overlay.update_mission(Copy.HEADER_TITLE, Copy.HEADER_SUBTITLE)
 
@@ -127,9 +184,24 @@ func _on_retry_pressed() -> void:
 
 
 func _on_next_pressed() -> void:
-	if coordinator != null:
-		coordinator.next_mission()
-		coordinator.start_current_mission()
+	show_start_screen()
+
+
+func _process(delta: float) -> void:
+	if station == null or not coordinator._foreground:
+		return
+	if campaign != null and campaign.mode in ["room", "repair"]:
+		station.advance_supplies(delta, campaign.room >= 7)
+	# Greenhouse advances at base and during active repair, never during an input barrier.
+	var active_repair := coordinator._playing and coordinator._current != null and not coordinator._current.pause_required
+	var at_base := campaign.mode == "room" if campaign != null else start_screen.visible
+	var growth := 0.8 if campaign != null and station.economy_mode() else 1.0
+	station.advance(minf(delta, 0.1) * growth, at_base or active_repair)
+
+
+func _notification(what: int) -> void:
+	if station != null and what in [NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_WM_CLOSE_REQUEST]:
+		station.flush_supplies()
 
 
 func _on_pad_channels_changed(a: float, b: float) -> void:
@@ -138,6 +210,8 @@ func _on_pad_channels_changed(a: float, b: float) -> void:
 
 
 func _on_command_updated(command) -> void:
+	if coordinator != null and coordinator._course != null:
+		coordinator._course.set_visual_command(command)
 	var color := _state_color(command.state)
 	var text := Copy.state_message(command)
 	if hud_overlay != null:
@@ -145,6 +219,33 @@ func _on_command_updated(command) -> void:
 
 
 func _on_mission_started(level_id: String, config) -> void:
+	station.begin_job(level_id)
+	if campaign != null:
+		var device := RepairTask.new()
+		device.salvage = campaign.room == 2
+		device.storm_trial = campaign.room == 9
+		device.drill = campaign.room == 8
+		if device.storm_trial and campaign.world.data.stabilizer:
+			device.surge_limit += 0.8
+		campaign.add_child(device)
+		campaign.move_child(device, 1)
+		coordinator.repair_task = device
+		campaign.device = device
+		campaign.offset_bottom = -72
+		var title: String = RepairTask.TITLES[level_id]
+		if device.storm_trial: title = "Ретранслятор · грозовой фронт"
+		elif device.drill: title = "Бур · калибровка зажима"
+		elif device.salvage: title = "Снять ячейку"
+		campaign.show_repair(title)
+		device.completed.connect(coordinator._on_level_completed)
+		device.event_emitted.connect(coordinator._on_game_event)
+		device.hint_changed.connect(campaign.repair_hint)
+		device.sound_requested.connect(campaign.sound.fx)
+		device.setup(level_id, coordinator._step_for(level_id), coordinator._tracker.session_id, coordinator._attempt_counter)
+		emulator_pad.clear()
+		emulator_pad.show()
+		coordinator._update_status()
+		return
 	$Root/Margin.visible = true
 	if screen_overlay != null:
 		screen_overlay.visible = false
@@ -155,9 +256,13 @@ func _on_mission_started(level_id: String, config) -> void:
 	if emulator_pad != null:
 		emulator_pad.visible = true
 		emulator_pad.clear()
-	var sub: String = Copy.TUTORIAL_HINTS[1] if level_id == "tutorial" else (config.title + " · " + config.hazard_subtitle)
+	var title: String = {"tutorial": "МАСТЕРСКАЯ", "repair-1": "ВОДЯНОЙ НАСОС",
+		"repair-2": "ГЕНЕРАТОР", "repair-3": "АНТЕННА"}[level_id]
+	var sub := "Доведи дрон до выхода справа. Удерживай A для подъёма или B для спуска. Отпусти, чтобы остановиться."
+	if config != null and not config.hazard_subtitle.is_empty():
+		sub += " " + config.hazard_subtitle
 	if hud_overlay != null:
-		hud_overlay.update_mission(Copy.COOLANT_TITLE if level_id == "repair-1" else Copy.HEADER_TITLE, Copy.COOLANT_HINT if level_id == "repair-1" else sub)
+		hud_overlay.update_mission(title, sub)
 		hud_overlay.update_time(0.0)
 
 
@@ -168,6 +273,37 @@ func _on_mission_tick(active_seconds: float, in_hold_zone: bool) -> void:
 
 
 func _on_mission_completed(summary, adaptation: Dictionary) -> void:
+	if campaign != null:
+		campaign.sound.fx("success")
+		var task = coordinator.repair_task
+		var relay: bool = task.storm_trial
+		var repeat_relay: bool = campaign.world.data.relay
+		campaign.world.record(summary,task.mistakes,task.releases,relay)
+		if task.drill:
+			station.cancel_job()
+			campaign.world.data.extractor = true
+			station.save()
+			_leave_repair("Бур откалиброван. Теперь можно собрать кристаллы.")
+			return
+		if relay:
+			station.cancel_job()
+			_leave_repair("Синхронизация стабильна. Заряд +1." if repeat_relay else
+				"Маяк: маршрут через бурю найден. В радиорубку! Заряд +3.")
+			if not repeat_relay: campaign.sound.say("relay")
+			return
+		var first_air: bool = not station.data.air_ready and summary.level_id == "tutorial"
+		var first_water: bool = not station.data.pump and summary.level_id == "repair-1"
+		var first_signal: bool = not station.data.signal and summary.level_id == "repair-3"
+		var reward := station.complete_job(summary.level_id)
+		var story := ""
+		if first_air: story = "Маяк: давление держится. "
+		elif first_water: story = "Маяк: охлаждение вернулось. "
+		elif first_signal: story = "Орбита: сигнал принят. Открываем коридор домой. "
+		_leave_repair(story + reward)
+		if first_air: campaign.sound.say("air")
+		elif first_water: campaign.sound.say("water")
+		elif first_signal: campaign.chapter_scene(2)
+		return
 	$Root/Margin.visible = false
 	if screen_overlay != null:
 		screen_overlay.visible = true
@@ -181,10 +317,17 @@ func _on_mission_completed(summary, adaptation: Dictionary) -> void:
 	if hud_overlay != null:
 		hud_overlay.set_resume_visible(false)
 	if result_screen != null:
-		result_screen.show_result(summary, adaptation)
+		var result := adaptation.duplicate()
+		result["station_reward"] = station.complete_job(summary.level_id) if summary != null else ""
+		result["station_objective"] = station.quest().title
+		result_screen.show_result(summary, result)
 
 
 func _on_input_barrier_changed(needs_resume: bool, prompt_text: String) -> void:
+	if campaign != null:
+		var safe: bool = coordinator._current != null and coordinator._current.state in [&"REST", &"ACTIVE"]
+		campaign.repair_barrier("" if safe else prompt_text, needs_resume)
+		return
 	if hud_overlay != null:
 		hud_overlay.set_resume_visible(needs_resume)
 		if coordinator != null and coordinator._current != null:
@@ -200,6 +343,10 @@ func _on_hand_side_changed(is_left: bool) -> void:
 
 
 func _on_unlocked_missions_changed(_unlocked: Array) -> void:
+	if campaign != null:
+		campaign.unlocked = _unlocked
+		campaign.refresh()
+		return
 	_refresh_start_screen()
 
 

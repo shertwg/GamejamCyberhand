@@ -134,3 +134,16 @@ const COOLANT_HINT = "Доставьте хладагент через засл�
 const SHIP_DONE = "Готово"
 const SHIP_REPAIR = "Ремонт"
 const SHIP_LOCKED = "Закрыто"
+
+const LED_HOLD = "HOLD"
+const LED_ACT = "ACT"
+const BOTH_SHORT = "A+B · СТОП"
+
+const BRIDGE = "Мостик"
+const BRIDGE_INFO = "МОСТИК · ПЛАН ЭВАКУАЦИИ\nВосстановите мастерскую, охлаждение, генератор и связь. Маяк подаст сигнал спасателям. Отпускайте оба канала для отдыха — время ожидания не влияет на активный таймер."
+const MISSION_LIST = "Карта ремонтов ▾"
+const TIMER_LABEL = "АКТИВНОЕ ВРЕМЯ"
+const METRIC_TIME = "Время"
+const SHOW_LOG = "Показать журнал целиком"
+const FINALE_TITLE = "СИГНАЛ ПРИНЯТ · МЫ ВОЗВРАЩАЕМСЯ"
+const FINALE_BODY = "Все контуры восстановлены. Спасательный катер подтвердил сигнал. Корабль готов к взлёту — рейнджер и Маяк возвращаются домой."

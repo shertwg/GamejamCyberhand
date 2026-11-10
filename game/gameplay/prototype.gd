@@ -87,6 +87,8 @@ func _begin_round() -> void:
 func set_foreground(value: bool) -> void:
 	super.set_foreground(value)
 	if _game_view != null and _game_view.emulator_pad != null:
+		if _game_view.campaign != null:
+			_game_view.campaign.foreground = value
 		if not value:
 			_game_view.emulator_pad.clear()
 			_game_view.emulator_pad.visible = false
