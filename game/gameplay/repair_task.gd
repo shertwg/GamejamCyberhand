@@ -7,7 +7,7 @@ signal hint_changed(hint: String)
 signal sound_requested(cue: String)
 
 const Art = preload("res://game/ui/visual_assets.gd")
-const TITLES := {"tutorial": "Аварийная заслонка", "repair-1": "Водяной клапан",
+const TITLES := {"tutorial": "Аварийная заслонка", "repair-1": "Регулировка давления",
 	"repair-2": "Захват фазы", "repair-3": "Настройка сигнала"}
 var level_id := ""
 var active_seconds := 0.0
@@ -32,6 +32,10 @@ var _event_number := 0
 var _hint := ""
 var _feedback := 0.0
 var _surge_clock := 0.0
+var _pressure_hold := 0.0
+var _right_phase := 1.0
+var _signal_clock := 0.0
+var _signal_hold := 0.0
 var _unit := 1.0
 var _origin := Vector2.ZERO
 
@@ -62,10 +66,18 @@ func advance(delta: float, command: ControlCommand) -> void:
 	elif _last_direction in [&"OPEN",&"CLOSE"]:
 		releases += 1
 	_feedback = maxf(0.0, _feedback - delta)
-	if storm_trial or level_id == "repair-2":
+	if storm_trial:
 		_phase_lock(delta, command, rest)
+	elif level_id == "repair-2":
+		_balance_rotors(delta, command, rest)
 	elif level_id == "repair-3":
 		_tune(delta, command, rest)
+	elif drill:
+		_stroke(delta, command, rest)
+	elif level_id == "repair-1":
+		_regulate(delta, command, rest)
+	elif salvage:
+		_salvage(delta, command, rest)
 	else:
 		_stroke(delta, command, rest)
 	_last_direction = command.direction
@@ -129,30 +141,96 @@ func _missed() -> void:
 	_feedback = 0.8
 	sound_requested.emit("warning")
 
-func _tune(delta: float, command: ControlCommand, rest: bool) -> void:
-	if rest:
-		if absf(_value - _center) <= _width * 0.5:
-			_neutral += delta
-			if _neutral >= 0.72: _finish()
+func _regulate(delta: float, command: ControlCommand, rest: bool) -> void:
+	var force := 0.0
+	if not rest:
+		force = (0.72 if command.direction == &"CLOSE" else -0.75) * command.intensity
+	_value = clampf(_value + delta * (force - 0.12), 0.0, 1.0)
+	if _value > 0.88:
+		_value = 0.31
+		_missed()
+		sound_requested.emit("air")
+	if _value >= 0.58 and _value <= 0.81:
+		_pressure_hold += delta
+		if _pressure_hold >= 2.5: _finish()
+	else:
+		_pressure_hold = 0.0
+
+func _salvage(delta: float, command: ControlCommand, rest: bool) -> void:
+	if _feedback > 0.0: return
+	match _stage:
+		0:
+			if not rest and command.direction == &"CLOSE":
+				_value += delta * 1.46 * command.intensity
+				if _value > 0.78:
+					_value = 0.0
+					_missed()
+			elif rest and _value >= 0.38:
+				_stage = 1
+				_value = 0.0
+				sound_requested.emit("click")
+		1:
+			if not rest and command.direction == &"CLOSE":
+				_value = minf(1.0, _value + delta * 1.4 * command.intensity)
+			_neutral = _neutral + delta if rest and _value >= 0.93 else 0.0
+			if _neutral >= 1.0:
+				_stage = 2
+				sound_requested.emit("click")
+		2:
+			if not rest and command.direction == &"OPEN":
+				sound_requested.emit("craft")
+				_finish()
+
+func _balance_rotors(delta: float, command: ControlCommand, rest: bool) -> void:
+	if not rest:
+		if command.direction == &"OPEN":
+			_value = clampf(_value + delta * 0.7 * command.intensity, 0.0, 1.0)
 		else:
-			_neutral = 0.0
+			_right_phase = clampf(_right_phase - delta * 0.7 * command.intensity, 0.0, 1.0)
+		_neutral = 0.0
 		return
-	_neutral = 0.0
-	var direction := 1.0 if command.direction == &"OPEN" else -1.0
-	_value = clampf(_value + direction * delta * 0.33 * command.intensity, 0.0, 1.0)
+	var aligned := absf(_value - _center) <= 0.12 and absf(_right_phase - _center) <= 0.12 and absf(_value - _right_phase) <= 0.11
+	_neutral = _neutral + delta if aligned else 0.0
+	if _neutral >= 0.28:
+		_stage += 1
+		if _stage >= 2:
+			_finish()
+		else:
+			_center = 0.40
+			_value = 0.0
+			_right_phase = 1.0
+			_neutral = 0.0
+			sound_requested.emit("click")
+
+func _tune(delta: float, command: ControlCommand, rest: bool) -> void:
+	_signal_clock += delta
+	_center = 0.54 + sin(_signal_clock * 1.04) * 0.16
+	if not rest:
+		var direction := -1.0 if command.direction == &"OPEN" else 1.0
+		_value = clampf(_value + direction * delta * 0.48 * command.intensity, 0.0, 1.0)
+	var previous := _signal_hold
+	_signal_hold = _signal_hold + delta if absf(_value - _center) <= 0.105 else 0.0
+	if previous < 0.45 and _signal_hold >= 0.45: sound_requested.emit("click")
+	elif previous >= 0.65 and _signal_hold == 0.0: sound_requested.emit("warning")
+	if _signal_hold >= 3.0: _finish()
 
 func _update_hint() -> void:
 	if done: return
 	var next: String
 	if storm_trial:
 		next = "Импульс сбил фазу. Повтори окно." if _feedback > 0 else "A вращает · B фиксирует   |   %d/3" % _stage
-	elif level_id in ["tutorial","repair-1"]:
+	elif drill:
+		next = ("Отпусти протез" if _releasing else ("Удерживай B" if _stroke_direction() == &"CLOSE" else "Удерживай A")) + "   |   %d/4" % _stage
+	elif level_id == "repair-1":
+		next = "Сброс давления" if _feedback > 0 else ("Удерживай стрелку в зоне" if _pressure_hold > 0 else "B подаёт давление · A стравливает")
+	elif salvage:
+		next = "Слишком сильно · Повтори" if _feedback > 0 else ["Сожми B до зоны и отпусти", "Подними B · Отпусти на секунду", "Сварка · Коротко нажми A"][_stage]
+	elif level_id == "tutorial":
 		next = "Отпусти протез" if _releasing else ("Сожми и удерживай · B" if _stroke_direction() == &"CLOSE" else "Раскрой и удерживай · A")
-		if drill: next += "   |   %d/4" % _stage
 	elif level_id == "repair-2":
-		next = "Мимо. Попробуй ещё раз" if _feedback > 0 else "A вращает · B фиксирует в светлой зоне"
+		next = "Сведи метки A/B · Отпусти для фиксации"
 	else:
-		next = "Отпусти и удерживай покой" if absf(_value - _center) <= _width * 0.5 else "Совмести сигнал · A вправо, B влево"
+		next = "Веди за полосой · A влево · B вправо"
 	if next != _hint:
 		_hint = next
 		hint_changed.emit(_hint)
@@ -173,19 +251,50 @@ func _draw() -> void:
 	_unit = minf(size.x / 288.0, size.y / 146.0)
 	if _unit <= 0: return
 	_origin = (size - Vector2(288,146) * _unit) * 0.5
+	if _feedback > 0.0:
+		_origin.x += roundf(sin(_feedback * 59.0) * minf(2.0, _feedback * 5.0)) * _unit
 	draw_set_transform(_origin, 0, Vector2.ONE * _unit)
 	Art.prop(self, "plate", Rect2(0, 0, 288, 146), Color("bcb2b7"))
 	var accent := Color("9cf6c9") if _feedback <= 0 else Color("ff9078")
-	if level_id == "repair-2" or storm_trial:
+	if storm_trial:
 		_dial(accent)
+	elif level_id == "repair-2":
+		_rotors(accent)
 	elif level_id == "repair-3":
 		_wave(accent)
 	elif drill:
 		_draw_drill(accent)
 	elif salvage:
 		_gripper(accent)
+	elif level_id == "repair-1":
+		_pressure_meter(accent)
 	else:
 		_valve(accent)
+
+func _pressure_meter(accent: Color) -> void:
+	var center := Vector2(144, 69)
+	Art.prop(self, "dial", Rect2(center - Vector2(54, 54), Vector2(108, 108)))
+	draw_arc(center, 39, -PI * 1.26 + 4.8 * 0.58, -PI * 1.26 + 4.8 * 0.81, 18, Color("9cf6c9"), 4)
+	draw_arc(center, 39, -PI * 1.26 + 4.8 * 0.88, -PI * 1.26 + 4.8, 12, Color("f47d63"), 4)
+	_spin("needle", center, Vector2(14, 47), -PI * 0.76 + _value * 4.8 + sin(_value * 43.0) * 0.018, Vector2(0.5, 0.8))
+	_draw_charge(_pressure_hold / 2.5, accent)
+	if _feedback > 0.0:
+		Art.prop(self, "steam", Rect2(170, 42 - 18 * (1.0 - _feedback), 76, 64), Color(0.9, 0.94, 1.0, _feedback))
+
+func _rotors(accent: Color) -> void:
+	for i in range(2):
+		var point := Vector2(93 + i * 102, 63)
+		var phase := _value if i == 0 else _right_phase
+		Art.prop(self, "dial", Rect2(point - Vector2(43, 43), Vector2(86, 86)))
+		draw_arc(point, 31, TAU * (_center - 0.12) - PI / 2, TAU * (_center + 0.12) - PI / 2, 16, accent, 3)
+		_spin("needle", point, Vector2(13, 39), TAU * phase, Vector2(0.5, 0.8))
+	if _neutral > 0.0:
+		Art.prop(self, "spark", Rect2(127, 45, 34, 34), Color(accent, clampf(_neutral * 4.0, 0.0, 1.0)))
+	_steps(2, accent)
+
+func _draw_charge(amount: float, accent: Color) -> void:
+	draw_rect(Rect2(91, 125, 106, 7), Color("26394b"))
+	draw_rect(Rect2(91, 125, 106 * clampf(amount, 0.0, 1.0), 7), accent)
 
 func _dial(accent: Color) -> void:
 	var center := Vector2(144, 70)
@@ -201,8 +310,8 @@ func _dial(accent: Color) -> void:
 func _wave(accent: Color) -> void:
 	Art.prop(self, "scope", Rect2(45, 8, 198, 130))
 	var glass := Rect2(76, 31, 136, 54)
-	var band := Rect2(glass.position.x + glass.size.x * (_center - _width * 0.5),
-		glass.position.y, glass.size.x * _width, glass.size.y)
+	var band := Rect2(glass.position.x + glass.size.x * (_center - 0.105),
+		glass.position.y, glass.size.x * 0.21, glass.size.y)
 	draw_rect(band, Color(accent,0.24))
 	draw_rect(band, Color(accent,0.58), false, 1)
 	var line := PackedVector2Array()
@@ -212,8 +321,7 @@ func _wave(accent: Color) -> void:
 		line.append(Vector2(glass.position.x + fraction * glass.size.x,
 			glass.get_center().y + roundf(wave * 21)))
 	draw_polyline(line, Color("b6f5f0"), 2)
-	draw_rect(Rect2(105,104,77,4),Color("182229"))
-	draw_rect(Rect2(105,104,77 * clampf(_neutral/0.72,0,1),4),accent)
+	_draw_charge(_signal_hold / 3.0, accent)
 
 func _valve(accent: Color) -> void:
 	var center := Vector2(144, 68)
@@ -225,16 +333,24 @@ func _valve(accent: Color) -> void:
 	_steps(_stroke_count(), accent)
 
 func _gripper(accent: Color) -> void:
-	var amount := _value if _stage == 0 else 1.0 - _value
+	var amount := _value if _stage == 0 else 0.65
 	var grip := 7.0 * (1.0 - amount)
-	var lift := 9.0 * amount
+	var lift := 13.0 * _value if _stage >= 1 else 0.0
 	var y := 17.0 - lift
 	# Animate the two jaw regions beneath a single stationary actuator.
 	Art.prop(self, "claw_left", Rect2(98 - grip, y + 40, 45, 59))
 	Art.prop(self, "claw_right", Rect2(143 + grip, y + 40, 46, 59))
 	Art.prop(self, "claw_head", Rect2(121, y, 46, 50))
 	Art.prop(self, "gear", Rect2(129, 88 - lift, 31, 31))
-	_steps(2, accent)
+	_steps(3, accent)
+	if _stage == 0:
+		draw_rect(Rect2(91, 108, 106, 7), Color("26394b"))
+		draw_rect(Rect2(91 + 106 * 0.38, 108, 106 * 0.40, 7), Color("638e84"))
+		draw_rect(Rect2(91 + 106 * _value, 106, 2, 11), accent)
+	elif _stage == 1:
+		_draw_charge(_neutral, accent)
+	elif _stage == 2:
+		Art.prop(self, "spark", Rect2(138, 68, 30, 28), accent)
 
 func _draw_drill(accent: Color) -> void:
 	draw_texture_rect_region(Art.LOOT,Rect2(141,54,90,62),Art.MATERIALS.ore)

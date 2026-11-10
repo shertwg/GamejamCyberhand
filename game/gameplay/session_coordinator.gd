@@ -46,6 +46,7 @@ var _channel_a: float = 0.0
 var _channel_b: float = 0.0
 var _current: Command
 var _playing: bool = false
+var _expedition_input := false
 var _foreground: bool = true
 var _application_paused: bool = false
 var _application_focused: bool = true
@@ -224,7 +225,7 @@ func is_hand_left() -> bool:
 
 
 func request_resume() -> void:
-	if not _foreground or not _playing or _current == null or _current.state != &"WAITING_RESUME":
+	if not _foreground or not (_playing or _expedition_input) or _current == null or _current.state != &"WAITING_RESUME":
 		return
 	var now := _now_ms()
 	if _should_sample(now):
@@ -235,8 +236,28 @@ func request_resume() -> void:
 func set_channel_values(a: float, b: float) -> void:
 	_channel_a = clampf(a, 0.0, 1.0)
 	_channel_b = clampf(b, 0.0, 1.0)
-	if _playing and _foreground:
+	if (_playing or _expedition_input) and _foreground:
 		_emit_frame(_now_ms())
+
+
+func set_expedition_input(enabled: bool) -> void:
+	_expedition_input = enabled
+	if enabled:
+		_begin_input_stream()
+	suspend_expedition_input()
+
+
+func suspend_expedition_input() -> void:
+	_channel_a = 0.0
+	_channel_b = 0.0
+	_pipeline.suspend()
+	_last_sample_ms = -1
+
+
+func resume_expedition_input() -> void:
+	if not _expedition_input or not _foreground: return
+	_emit_frame(_now_ms())
+	request_resume()
 
 
 func clear_channel_values() -> void:

@@ -5,6 +5,7 @@ signal job_requested(level_id: String)
 signal resume_requested
 signal exit_requested
 signal hand_requested
+signal quiet_signal_requested
 
 const Art = preload("res://game/ui/crash_art.gd")
 const State = preload("res://game/station/station_state.gd")
@@ -37,6 +38,7 @@ var _greenhouse_upgrade: Button
 var _seed_picker: Button
 var _equipment: Button
 var _scrap: Button
+var _purge: Button
 var _crop := "greens"
 var _refill_buttons: Dictionary = {}
 var _bag_panel: Panel
@@ -132,6 +134,8 @@ func _ready() -> void:
 	_seed_picker = make_button("", _change_seed)
 	_equipment = make_button("", _install_equipment)
 	_scrap = make_button("Разобрать обломки", _queue_salvage)
+	_purge = make_button("Продувка", func():
+		if foreground and _purge.visible: job_requested.emit("repair-1"))
 	for recipe_button in [_liner, _cell, _stabilizer, _greenhouse_upgrade]:
 		recipe_button.add_theme_font_size_override("font_size", 14)
 	for key in State.SUPPLY_PER_UNIT:
@@ -144,6 +148,7 @@ func _ready() -> void:
 	add_child(_map)
 	_map.room_chosen.connect(func(id):
 		if id in world.data.discovered: _enter(id))
+	_map.quiet_signal_requested.connect(func(): quiet_signal_requested.emit())
 	_map.dismissed.connect(func():
 		_map.hide()
 		refresh())
@@ -339,6 +344,7 @@ func refresh() -> void:
 	_seed_picker.tooltip_text = "Сменить семена · " + State.cost_text(_seed_cost())
 	_refresh_equipment()
 	_scrap.hide()
+	_purge.visible = mode == "room" and room == 3 and station.data.garden and world.data.weather_event == "dust" and not _bag_open and not _map.visible
 	if mode == "repair":
 		_left.hide()
 		_right.hide()
@@ -731,6 +737,7 @@ func _layout() -> void:
 	place(_seed_picker, Vector2(x+w-145,top+84),Vector2(145,43))
 	place(_equipment, Vector2(x+w-162,top+84),Vector2(162,43))
 	place(_scrap, Vector2(x+w-196,top+84),Vector2(196,43))
+	place(_purge, Vector2(x,top+84),Vector2(144,43))
 	var bag_width := minf(w, 646.0)
 	var bag_x := roundf(x + (w - bag_width) * 0.5)
 	var columns := 3 if bag_width >= 480 else 2

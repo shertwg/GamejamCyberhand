@@ -35,14 +35,15 @@ var cooldowns: Dictionary = {}
 static func defaults() -> Dictionary:
 	return {"ore":0,"silica":0,"alloy":0,"filter":false,"shield":false,"liner":false,"stabilizer":false,"extractor":false,
 		"relay":false,"discovered":[0],"collected":0,"repairs":0,"last":{},
-		"story_flags":[],"best_relay":-1,"condenser":false,"capacitor":false}
+		"story_flags":[],"best_relay":-1,"condenser":false,"capacitor":false,
+		"weather_shift":0,"weather_event":""}
 
 func _init(model) -> void:
 	station = model
 	data = defaults()
 	var saved: Variant = station.data.get("expedition", {})
 	if saved is Dictionary:
-		for key in ["ore","silica","alloy","collected","repairs","best_relay"]:
+		for key in ["ore","silica","alloy","collected","repairs","best_relay","weather_shift"]:
 			var amount: Variant = saved.get(key,data[key])
 			if (amount is int or amount is float) and is_finite(float(amount)):
 				data[key] = int(clampf(float(amount),-1 if key == "best_relay" else 0,9999))
@@ -57,7 +58,25 @@ func _init(model) -> void:
 						data[key].append(int(id))
 		if saved.get("last") is Dictionary:
 			data.last = saved.last.duplicate()
+		if saved.get("weather_event") in ["dust", "vent"]:
+			data.weather_event = saved.weather_event
 	station.data.expedition = data
+
+func next_station_event() -> String:
+	if not data.weather_event.is_empty(): return ""
+	var event: String = ["dust", "vent", "tracks"][int(data.weather_shift) % 3]
+	data.weather_shift = (int(data.weather_shift) + 1) % 3
+	if event != "tracks": data.weather_event = event
+	station.save()
+	match event:
+		"dust": return "Маяк: пыль забила фильтр биосада."
+		"vent": return "Маяк: выброс обнажил кристаллы в пещере."
+		_: return "Маяк: у шлюза следы. У них больше ног, чем я рассчитывал."
+
+func finish_dust_cycle() -> void:
+	if data.weather_event != "dust": return
+	data.weather_event = ""
+	station.save()
 
 func chapter() -> int:
 	if station.data.launched: return 5
@@ -106,6 +125,9 @@ func collect(room: int, index: int) -> String:
 	var deposit: Array = points[index]
 	var key: String = deposit[1]
 	var count: int = deposit[2] + (1 if data.liner and key in ["ore","silica"] else 0)
+	if key == "silica" and data.weather_event == "vent":
+		count += 2
+		data.weather_event = ""
 	if data.has(key): data[key] = mini(9999,int(data[key])+count)
 	else: station.add_stock(key, count)
 	data.collected = mini(9999,int(data.collected)+count)

@@ -37,7 +37,8 @@ static func defaults() -> Dictionary:
 		"pump": false, "garden": false, "generator": false, "beacon": false,
 		"signal": false, "launched": false, "harvests": 0, "garden_level": 1,
 		"beds": [-1.0, -1.0, -1.0], "crops": ["greens", "greens", "greens"], "intro_seen": false, "air_ready": false,
-		"fuses": 0, "coils": 0, "expedition": {}, "supplies": SUPPLY_START.duplicate()}
+		"fuses": 0, "coils": 0, "expedition": {}, "supplies": SUPPLY_START.duplicate(),
+		"quiet_signal_claims": {}}
 
 func load_save() -> void:
 	if path.is_empty() or not FileAccess.file_exists(path): return
@@ -78,6 +79,7 @@ func load_save() -> void:
 			if (value is float or value is int) and is_finite(float(value)):
 				data.supplies[key] = clampf(float(value), 0.0, 100.0)
 	data.garden_level = clampi(int(data.garden_level), 1, 2)
+	if not data.quiet_signal_claims is Dictionary: data.quiet_signal_claims = {}
 	var stored_crops: Variant = raw.get("crops", [])
 	data.crops = ["greens", "greens", "greens"]
 	for i in range(data.beds.size()):
@@ -113,6 +115,45 @@ func add_stock(key: String, amount: int) -> void:
 	data[key] = mini(9999, int(data[key]) + amount)
 	if SUPPLY_PER_UNIT.has(key):
 		data.supplies[key] = minf(100.0, supply(key) + amount * int(SUPPLY_PER_UNIT[key]))
+
+func credit_quiet_signal(result: Dictionary) -> bool:
+	var id: Variant = result.get("reward_id")
+	if result.get("schema_version") != 1 or result.get("expedition_id") != "quiet_signal" or result.get("completed") != true: return false
+	if not id is String or not id.begins_with("quiet_signal/") or id.length() <= 13 or id.length() > 120: return false
+	if result.get("run_id") != id.substr(13): return false
+	if data.quiet_signal_claims.has(id): return true
+	var rewards: Variant = result.get("reward_proposal")
+	if not rewards is Array or rewards.size() > 5: return false
+	var gains := {"parts": 0, "energy": 0, "alloy": 0}
+	var seen := {}
+	for item in rewards:
+		if not item is Dictionary: return false
+		var key: Variant = item.get("item_id")
+		var count: Variant = item.get("amount")
+		if not key is String or seen.has(key): return false
+		if not (count is int or count is float) or not is_finite(float(count)) or count < 1 or count > 8 or float(count) != floorf(count): return false
+		seen[key] = true
+		match key:
+			"conductive_scrap", "ceramic_coupler": gains.parts += int(count)
+			"scout_adapter": gains.parts += 2 * int(count)
+			"emergency_battery": gains.energy += 3 * int(count)
+			"rare_coil": gains.alloy += int(count)
+			_: return false
+	var previous := {"parts": data.parts, "energy": data.energy, "alloy": data.expedition.get("alloy", 0), "meter": supply("energy")}
+	add_stock("parts", gains.parts)
+	add_stock("energy", gains.energy)
+	data.expedition.alloy = mini(9999, int(previous.alloy) + int(gains.alloy))
+	data.quiet_signal_claims[id] = true
+	if not save():
+		data.parts = previous.parts
+		data.energy = previous.energy
+		data.expedition.alloy = previous.alloy
+		data.supplies.energy = previous.meter
+		data.quiet_signal_claims.erase(id)
+		return false
+	notice = "Добыча на складе · %s" % cost_text(gains) if gains.parts + gains.energy + gains.alloy > 0 else "Вылазка завершена"
+	changed.emit()
+	return true
 
 func can_refill_from_stock(key: String) -> bool:
 	return SUPPLY_PER_UNIT.has(key) and int(data[key]) > 0 and supply(key) <= 100.0 - int(SUPPLY_PER_UNIT[key])
@@ -204,7 +245,8 @@ func complete_job(level_id: String) -> String:
 static func cost_text(cost: Dictionary) -> String:
 	var items: PackedStringArray = []
 	for key in cost:
-		items.append("%s ×%d" % [NAMES.get(key, "Предохранитель"), cost[key]])
+		if cost[key] > 0:
+			items.append("%s ×%d" % ["Сплав" if key == "alloy" else NAMES.get(key, "Предохранитель"), cost[key]])
 	return " · ".join(items)
 
 func build(module: String, install_coil := false) -> bool:

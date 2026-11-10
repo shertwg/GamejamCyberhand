@@ -1,6 +1,7 @@
 extends PanelContainer
 
 signal room_chosen(room: int)
+signal quiet_signal_requested
 signal dismissed
 const World = preload("res://game/gameplay/expedition.gd")
 const Art = preload("res://game/ui/visual_assets.gd")
@@ -8,6 +9,7 @@ var _nodes: Array[Button] = []
 var _chapter: Label
 var _details: Label
 var _graph: Control
+var _quiet: Button
 
 func _ready() -> void:
 	var panel := StyleBoxFlat.new()
@@ -44,6 +46,12 @@ func _ready() -> void:
 		node.add_theme_stylebox_override("disabled",Art.skin("button",true))
 		node.add_theme_color_override("font_disabled_color",Color("9eafbe"))
 		_graph.add_child(node)
+	_quiet = Button.new()
+	_quiet.text = "Тихий сигнал"
+	_quiet.custom_minimum_size.y = 44
+	_quiet.add_theme_stylebox_override("normal", Art.skin("button_hot"))
+	_quiet.pressed.connect(func(): quiet_signal_requested.emit())
+	stack.add_child(_quiet)
 	var close := Button.new()
 	close.text = "Закрыть карту"
 	close.custom_minimum_size.y = 44
@@ -72,11 +80,14 @@ func _draw_route() -> void:
 		_graph.draw_line(first,second,Color("65566e") if _nodes[i+1].disabled else Color("ba9d70"),3)
 
 func update_map(world: World, current: int) -> void:
+	_quiet.visible = world.data.filter
 	var chapter: Array = World.CHAPTERS[world.chapter()]
 	var objective := world.next_objective()
 	var target: int = objective[0]
 	_chapter.text = chapter[0]
 	_details.text = ("◆ %02d · " % (target + 1) if target >= 0 else "") + str(objective[1])
+	if world.data.weather_event == "dust": _details.text += "\nБиосад · Нужна продувка"
+	elif world.data.weather_event == "vent": _details.text += "\nПещера · Новые кристаллы"
 	if world.chapter() in [2,3]:
 		var materials := "Экран готов" if world.data.shield else "Экран · сплав %d/1 · кристаллы %d/2" % [
 			mini(1,int(world.data.alloy)),mini(2,int(world.data.silica))]

@@ -11,10 +11,13 @@ const PadScript = preload("res://game/ui/manual_pad.gd")
 const StationState = preload("res://game/station/station_state.gd")
 const Campaign = preload("res://game/ui/campaign_view.gd")
 const RepairTask = preload("res://game/gameplay/repair_task.gd")
+const QuietSignal = preload("res://game/side_expedition/quiet_signal.tscn")
 static var legacy_demo := false
 var coordinator: SessionCoordinator
 var station: StationState
 var campaign: Campaign
+var quiet_signal: Control
+var _quiet_notice := ""
 
 @onready var root: Control = $Root
 @onready var hud_overlay: HudOverlay = $Root/Margin/VBox/HudOverlay
@@ -83,6 +86,7 @@ func _open_campaign() -> void:
 	campaign.resume_requested.connect(_on_resume_pressed)
 	campaign.exit_requested.connect(_leave_repair)
 	campaign.hand_requested.connect(_on_hand_toggle_pressed)
+	campaign.quiet_signal_requested.connect(_open_quiet_signal)
 	emulator_pad.reparent(root, false)
 	emulator_pad.compact = true
 	emulator_pad.custom_minimum_size.y = 58
@@ -91,6 +95,62 @@ func _open_campaign() -> void:
 	emulator_pad.offset_bottom = -10
 	emulator_pad.offset_left = 14
 	emulator_pad.offset_right = -14
+
+
+func _open_quiet_signal() -> void:
+	if is_instance_valid(quiet_signal) or campaign.mode != "room" or not coordinator._foreground or not campaign.world.data.filter: return
+	_quiet_notice = ""
+	campaign.mode = "expedition"
+	campaign.hide()
+	campaign.sound.cue(10)
+	campaign.sound.ambience("storm")
+	emulator_pad.clear()
+	coordinator.set_expedition_input(true)
+	quiet_signal = QuietSignal.instantiate()
+	quiet_signal.external_input_mode = true
+	quiet_signal.persistence_path = station.path + ".quiet_signal.json" if not station.path.is_empty() else ""
+	quiet_signal.input_pause_requested.connect(_pause_quiet_input)
+	quiet_signal.input_resume_requested.connect(coordinator.resume_expedition_input)
+	quiet_signal.expedition_completed.connect(_receive_quiet_reward)
+	quiet_signal.exit_requested.connect(_close_quiet_signal)
+	root.add_child(quiet_signal)
+	quiet_signal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	quiet_signal.offset_bottom = -72
+	root.move_child(emulator_pad, -1)
+	emulator_pad.show()
+	quiet_signal.flush_pending_rewards()
+
+
+func _pause_quiet_input() -> void:
+	emulator_pad.clear()
+	coordinator.suspend_expedition_input()
+
+
+func _receive_quiet_reward(result: Dictionary) -> void:
+	var first_receipt: bool = not station.data.quiet_signal_claims.has(result.get("reward_id"))
+	if station.credit_quiet_signal(result):
+		quiet_signal.acknowledge_reward(result.reward_id)
+		_quiet_notice = station.notice
+		if first_receipt and result.get("battery_secured") == true:
+			var weather := campaign.world.next_station_event()
+			if not weather.is_empty(): _quiet_notice += "\n" + weather
+	else:
+		_quiet_notice = "Склад недоступен. Открой вылазку снова, чтобы повторить доставку."
+		quiet_signal.report_storage_error(_quiet_notice)
+
+
+func _close_quiet_signal(_result: Dictionary) -> void:
+	var previous := quiet_signal
+	quiet_signal = null
+	coordinator.set_expedition_input(false)
+	emulator_pad.clear()
+	emulator_pad.hide()
+	previous.hide()
+	previous.queue_free()
+	campaign.show()
+	campaign.sound.room(campaign.room, station.data.signal)
+	campaign.sound.pause_audio(not coordinator._foreground)
+	campaign.show_room(_quiet_notice)
 
 
 func _leave_repair(message := "") -> void:
@@ -196,6 +256,8 @@ func _process(delta: float) -> void:
 	var active_repair := coordinator._playing and coordinator._current != null and not coordinator._current.pause_required
 	var at_base := campaign.mode == "room" if campaign != null else start_screen.visible
 	var growth := 0.8 if campaign != null and station.economy_mode() else 1.0
+	if campaign != null and campaign.world.data.weather_event == "dust":
+		growth *= 0.85
 	station.advance(minf(delta, 0.1) * growth, at_base or active_repair)
 
 
@@ -210,6 +272,8 @@ func _on_pad_channels_changed(a: float, b: float) -> void:
 
 
 func _on_command_updated(command) -> void:
+	if is_instance_valid(quiet_signal):
+		quiet_signal.submit_core_command(command)
 	if coordinator != null and coordinator._course != null:
 		coordinator._course.set_visual_command(command)
 	var color := _state_color(command.state)
@@ -236,6 +300,7 @@ func _on_mission_started(level_id: String, config) -> void:
 		if device.storm_trial: title = "Ретранслятор · грозовой фронт"
 		elif device.drill: title = "Бур · калибровка зажима"
 		elif device.salvage: title = "Снять ячейку"
+		elif campaign.room == 3 and level_id == "repair-1": title = "Продувка биосада"
 		campaign.show_repair(title)
 		device.completed.connect(coordinator._on_level_completed)
 		device.event_emitted.connect(coordinator._on_game_event)
@@ -279,6 +344,10 @@ func _on_mission_completed(summary, adaptation: Dictionary) -> void:
 		var relay: bool = task.storm_trial
 		var repeat_relay: bool = campaign.world.data.relay
 		campaign.world.record(summary,task.mistakes,task.releases,relay)
+		if campaign.room == 3 and summary.level_id == "repair-1":
+			campaign.world.finish_dust_cycle()
+			_leave_repair("Маяк: фильтр чист. Биосад снова дышит.")
+			return
 		if task.drill:
 			station.cancel_job()
 			campaign.world.data.extractor = true
@@ -299,6 +368,8 @@ func _on_mission_completed(summary, adaptation: Dictionary) -> void:
 		if first_air: story = "Маяк: давление держится. "
 		elif first_water: story = "Маяк: охлаждение вернулось. "
 		elif first_signal: story = "Орбита: сигнал принят. Открываем коридор домой. "
+		elif task.mistakes == 0 and summary.level_id in ["repair-1", "repair-2"]:
+			story = "Маяк: чистый контур. "
 		_leave_repair(story + reward)
 		if first_air: campaign.sound.say("air")
 		elif first_water: campaign.sound.say("water")

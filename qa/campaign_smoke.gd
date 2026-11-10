@@ -5,6 +5,7 @@ const State = preload("res://game/station/station_state.gd")
 const Navigation = preload("res://game/gameplay/deck_navigation.gd")
 const Opening = preload("res://game/ui/opening_timeline.gd")
 const GardenPlots = preload("res://game/ui/garden_plots.gd")
+const ExpeditionPilot = preload("res://game/side_expedition/tests/demo_pilot.gd")
 var host
 var scene
 var model: State
@@ -125,6 +126,9 @@ func _run() -> void:
 		and host.repair_task.active_seconds == 0.0, "repair keeps supply time separate from gesture time")
 	await capture("valve")
 	activate_input()
+	sample(0,1,35)
+	check(host.repair_task.mistakes == 1 and host.repair_task._pressure_hold == 0.0
+		and model.data.water == 0, "pressure overshoot vents without docking cargo")
 	turn_valve(3)
 	check(model.data.water == 3 and model.data.pump, "pump adds water")
 	check(is_equal_approx(model.supply("water"), 82.5), "pump also refills the ship water meter")
@@ -221,12 +225,12 @@ func _run() -> void:
 	use("job")
 	await capture("radio")
 	activate_input()
-	for i in range(100):
-		if not host._playing or host.repair_task._value >= 0.65: break
-		sample(1,0,1)
-	sample(0,0,15)
+	for i in range(160):
+		if not host._playing: break
+		var error: float = host.repair_task._value - host.repair_task._center
+		sample(1 if error > 0.045 else 0, 1 if error < -0.045 else 0, 1)
 	if scene.mode == "chapter": scene._finish_cut()
-	check(model.data.signal and scene.mode == "room", "radio requires alignment and neutral")
+	check(model.data.signal and scene.mode == "room", "radio rewards sustained tracking of a moving target")
 	go(1)
 	use("job")
 	activate_input()
@@ -353,13 +357,75 @@ func _run() -> void:
 	check(is_equal_approx(outdoor_water - model.supply("water"), 5.0), "condenser recovers water during exterior travel")
 	var installed: Dictionary = State.new(model.path).data.expedition
 	check(installed.capacitor and installed.condenser, "both upgrades survive relaunch")
-	for suffix in ["_profile.json", "_station.json", "_station.json.tmp"]:
+	await check_quiet_signal()
+	for suffix in ["_profile.json", "_station.json", "_station.json.tmp", "_station.json.quiet_signal.json", "_station.json.quiet_signal.json.tmp"]:
 		if FileAccess.file_exists(fixture + suffix): DirAccess.remove_absolute(fixture + suffix)
 	main.queue_free()
 	await process_frame
 	await process_frame
 	print("CAMPAIGN SMOKE checks=%d failures=%d" % [checks,errors])
 	quit(0 if errors == 0 else 1)
+
+func check_quiet_signal() -> void:
+	var view = host._game_view
+	scene._map_button.pressed.emit()
+	check(scene._map._quiet.visible, "campaign map exposes Quiet Signal after making the filter")
+	scene._map._quiet.pressed.emit()
+	var expedition = view.quiet_signal
+	check(is_instance_valid(expedition) and not scene.visible and host._expedition_input, "map opens the expedition with shared input")
+	if not is_instance_valid(expedition): return
+	expedition.set_process(false)
+	expedition._action.pressed.emit()
+	expedition.suspend_input()
+	check(host._current.state == &"SUSPENDED" and expedition._current.pause_required, "expedition pauses the owner's input pipeline")
+	expedition.request_resume()
+	check(host._current.state == &"REST" and expedition._current.state == &"REST", "explicit resume shares the owner's neutral command")
+	await capture("quiet-signal-campaign")
+	now = host._now_ms()
+	for i in range(3000):
+		if expedition.model.stage == "complete": break
+		var channels := ExpeditionPilot.channels(expedition.model)
+		now += 50
+		host._pipeline.submit(host._source.sample(now, channels.x, channels.y, true), now)
+		host.update_host(now, 0.05, false)
+		expedition.update_host(now, 0.05, false)
+	check(expedition.model.stage == "complete", "shared A/B pipeline drives the entire round trip (%s, %s)" % [expedition.model.stage, host._current.state])
+	if expedition.model.stage != "complete": return
+	var parts := int(model.data.parts)
+	var energy := int(model.data.energy)
+	var result: Dictionary = expedition.model.result()
+	check(expedition.claim_reward(), "expedition delivers its earned reward")
+	check(model.data.parts >= parts + 8 and model.data.energy == energy + 3, "campaign deposits salvage and battery")
+	var paid_parts := int(model.data.parts)
+	check(model.credit_quiet_signal(result) and not expedition.claim_reward()
+		and model.data.parts == paid_parts, "duplicate IDs cannot pay twice")
+	var disk := State.new(model.path)
+	check(disk.data.quiet_signal_claims.has(result.reward_id) and disk.data.parts == paid_parts
+		and expedition._ledger.pending_events().is_empty(), "durable ship receipt precedes ledger acknowledgement")
+	var unavailable := State.new("")
+	unavailable.path = fixture + "_missing/station.json"
+	check(not unavailable.credit_quiet_signal(result) and unavailable.data.parts == 3
+		and unavailable.data.quiet_signal_claims.is_empty(), "failed save rolls back stock and receipt together")
+	expedition._on_exit()
+	check(view.quiet_signal == null and scene.visible and scene._map.visible and not host._expedition_input, "expedition closes back to the campaign map")
+	check(scene.world.data.weather_event == "dust", "successful battery delivery brings a weather event home")
+	scene._map.dismissed.emit()
+	go(3)
+	var water := int(model.data.water)
+	check(scene._purge.visible, "dust adds a voluntary purge job in the greenhouse")
+	scene._purge.pressed.emit()
+	if host._playing:
+		activate_input()
+		turn_valve(3)
+	check(scene.world.data.weather_event.is_empty() and model.data.water == water, "purge clears dust without charging or granting water")
+	check(not scene.world.next_station_event().is_empty() and scene.world.data.weather_event == "vent", "next station event reveals geothermal crystals")
+	go(8)
+	scene.world.tick(12.0)
+	var silica := int(scene.world.data.silica)
+	collect(0)
+	check(scene.world.data.silica == silica + 4 and scene.world.data.weather_event.is_empty(), "vent adds one extra crystal payout")
+	check("следы" in scene.world.next_station_event() and scene.world.data.weather_event.is_empty(), "fauna event is a short story beat")
+	await process_frame
 
 func tap_plot(index: int) -> void:
 	await process_frame
@@ -420,6 +486,12 @@ func sample(a: float, b: float, frames: int) -> void:
 		host.update_host(now,0.05,false)
 
 func turn_valve(count: int) -> void:
+	if host.repair_task.level_id == "repair-1":
+		for i in range(160):
+			if not host._playing: break
+			sample(0, 1 if host.repair_task._value < 0.70 else 0, 1)
+		check(not host._playing, "short digital pulses and rest can regulate pressure")
+		return
 	for i in range(count):
 		sample(1 if i % 2 else 0, 0 if i % 2 else 1, 38)
 		sample(0,0,6)
@@ -430,16 +502,27 @@ func phase_lock() -> void:
 		for i in range(100):
 			if not host._playing or host.repair_task._value >= target - 0.025: break
 			sample(1,0,1)
-		sample(0,0,3)
-		sample(0,1,3)
-		sample(0,0,3)
+		for i in range(100):
+			if not host._playing or host.repair_task._right_phase <= target + 0.025: break
+			sample(0,1,1)
+		sample(0,0,8)
 	check(not host._playing, "two phase windows complete")
 
 func salvage(show_capture := false) -> void:
 	use("job")
 	if show_capture: await capture("claw")
 	activate_input()
-	turn_valve(2)
+	if show_capture:
+		var stock := int(model.data.parts)
+		sample(0,1,16)
+		check(host.repair_task.mistakes == 1 and model.data.parts == stock, "overgrip retries without consuming stock")
+		sample(0,0,18)
+	sample(0,1,8)
+	sample(0,0,3)
+	sample(0,1,17)
+	sample(0,0,22)
+	sample(1,0,2)
+	check(not host._playing, "grip, lift, neutral and weld finish salvage")
 
 func capture(name: String) -> void:
 	if not "--capture" in OS.get_cmdline_user_args(): return

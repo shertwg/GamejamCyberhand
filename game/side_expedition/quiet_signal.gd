@@ -26,6 +26,7 @@ var model = Model.new()
 ## Set before add_child() to use the campaign's already-approved input profile.
 var input_config = Config.emulator_profile()
 var persistence_enabled: bool = true
+var persistence_path: String = Ledger.DEFAULT_PATH
 var campaign_context: Dictionary = {}
 var external_input_mode: bool = false
 var _ledger
@@ -67,7 +68,7 @@ var _box: VBoxContainer
 func _ready() -> void:
 	name = "QuietSignal"
 	theme = Style.make_theme()
-	_ledger = Ledger.new(Ledger.DEFAULT_PATH if persistence_enabled else "")
+	_ledger = Ledger.new(persistence_path if persistence_enabled else "")
 	if not persistence_enabled and not campaign_context.is_empty():
 		_ledger.data.first_delivery_done = bool(campaign_context.get("first_delivery_done", false))
 	_input = Adapter.new()
@@ -79,8 +80,9 @@ func _ready() -> void:
 	model.journal_added.connect(_on_journal_added)
 	model.expedition_completed.connect(_on_completed)
 	model.location_entered.connect(func(id: String, line: String): location_entered.emit(id, line))
-	_pipeline = Pipeline.new(input_config)
-	_pipeline.command_ready.connect(_on_command)
+	if not external_input_mode:
+		_pipeline = Pipeline.new(input_config)
+		_pipeline.command_ready.connect(_on_command)
 	_begin_stream()
 	resized.connect(_layout)
 	_layout()
@@ -335,6 +337,10 @@ func flush_pending_rewards() -> void:
 func acknowledge_reward(id: String) -> bool:
 	return _ledger.acknowledge(id)
 
+func report_storage_error(message: String) -> void:
+	_save_message = message
+	_refresh()
+
 func _save_checkpoint() -> void:
 	_last_checkpoint_ms = Time.get_ticks_msec()
 	if _ledger == null or _restoring or _completed_emitted or model.stage == "briefing": return
@@ -507,7 +513,7 @@ func _refresh() -> void:
 	elif model.entry_line != "":
 		_hint.text = "Маяк: " + model.entry_line
 	else:
-		_hint.text = "Покой — безопасная остановка. Новые шкалы запасов не используются."
+		_hint.text = "Покой — безопасная остановка."
 	for i in range(_chips.size()):
 		var id: String = Model.LOCATION_ORDER[i]
 		var current: bool = id == model.destination_id or (model.destination_id == "" and id == model.location_id)
