@@ -6,6 +6,7 @@ signal expedition_completed(result: Dictionary)
 signal journal_added(entry: Dictionary)
 signal stage_changed(stage_id: String)
 signal exit_requested(result: Dictionary)
+signal location_entered(location_id: String, entry_line: String)
 
 const Model = preload("res://game/side_expedition/expedition_model.gd")
 const View = preload("res://game/side_expedition/expedition_view.gd")
@@ -61,6 +62,7 @@ func _ready() -> void:
 	model.stage_changed.connect(_on_stage_changed)
 	model.journal_added.connect(_on_journal_added)
 	model.expedition_completed.connect(_on_completed)
+	model.location_entered.connect(func(id: String, line: String): location_entered.emit(id, line))
 	_pipeline = Pipeline.new(input_config)
 	_pipeline.command_ready.connect(_on_command)
 	_begin_stream()
@@ -88,13 +90,14 @@ func _build_ui() -> void:
 	_title = _label("ТИХИЙ СИГНАЛ", 25, Color("e8f3ed"))
 	titles.add_child(_title)
 	_subtitle = _label("ПОБОЧНАЯ ЭКСПЕДИЦИЯ  /  QS-01", 12, Color("8af0d4"))
+	_subtitle.clip_text = true
 	titles.add_child(_subtitle)
 	_hand = _button("РУКА: ПРАВАЯ", _toggle_hand)
 	header.add_child(_hand)
 	var steps := HBoxContainer.new()
 	steps.add_theme_constant_override("separation", 5)
 	_box.add_child(steps)
-	for text in ["01 СИГНАЛ", "02 ДЕТАЛИ", "03 ПЕРЕХОДНИК", "04 БАТАРЕЯ", "05 ШЛЮЗ"]:
+	for text in ["01 ШЛЮЗ", "02 ПОЛЕ ОБЛОМКОВ", "03 ОСТОВ РАЗВЕДЧИКА"]:
 		var chip := _label(text, 11, Color("65818e"))
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -204,6 +207,7 @@ func update_host(now_ms: int, delta: float, heartbeat: bool = true) -> void:
 	_refresh()
 
 func _begin_stream() -> void:
+	_pipeline.suspend()
 	_input.clear()
 	_pad.clear()
 	_origin = Time.get_ticks_msec()
@@ -229,6 +233,7 @@ func _on_channels(_a: float, _b: float) -> void:
 
 func _on_command(command) -> void:
 	_current = command
+	model.observe_command(command)
 
 func start_expedition(p_run_id: String = "") -> void:
 	_run_counter += 1
@@ -249,9 +254,9 @@ func request_resume() -> void:
 func suspend_input() -> void:
 	if _pipeline == null:
 		return
+	_pipeline.suspend()
 	_input.clear()
 	_pad.clear()
-	_pipeline.suspend()
 	_skip_frame = true
 	_refresh()
 
@@ -328,6 +333,7 @@ func _refresh() -> void:
 	if _view == null:
 		return
 	_objective.text = model.objective()
+	_subtitle.text = "QS-01  /  " + model.route_text()
 	_progress.value = model.task_progress()
 	_progress.visible = model.stage in ["salvage", "adapter", "power"]
 	_journal_button.text = "ЖУРНАЛ %d" % model.journal.size()
@@ -346,6 +352,9 @@ func _refresh() -> void:
 		if state == &"ACTIVE": _action.text = "ЭКСПЕДИЦИЯ ИДЁТ"
 		elif state == &"REST": _action.text = "ПОКОЙ / ВКЛЮЧИ A ИЛИ B"
 		elif state in [&"BOTH", &"WAITING_NEUTRAL"]: _action.text = "ОТПУСТИ ОБА КАНАЛА"
+		if model.awaiting_neutral and state in [&"ACTIVE", &"REST"]: _action.text = "ОТПУСТИ ОБА КАНАЛА"
+		if state in [&"ACTIVE", &"REST"] and ((model.stage == "salvage" and model.clamp.needs_neutral()) or (model.stage == "power" and model.power.needs_neutral())):
+			_action.text = "ОТПУСТИ ОБА КАНАЛА"
 	if not _foreground:
 		_hint.text = "В фоне всё остановлено. После возврата — нейтраль и «Продолжить»."
 	elif state == &"BOTH" or (state == &"WAITING_NEUTRAL" and _current.reason == &"both_requires_neutral"):
@@ -354,13 +363,18 @@ func _refresh() -> void:
 		_hint.text = "Каналы в нейтрали. Нажми «Продолжить», когда будешь готов."
 	elif state in [&"WAITING_NEUTRAL", &"SUSPENDED", &"STALE", &"INVALID", &"DISCONNECTED"]:
 		_hint.text = "Сигнал остановлен. Отпусти оба канала, затем нажми «Продолжить»."
+	elif model.awaiting_neutral:
+		_hint.text = "Точка взаимодействия: отпусти оба канала, затем используй A/B для задачи."
 	elif model.blocked:
 		_hint.text = "Переборка ущелья: измени высоту. Контакт не отнимает батарею."
-	elif not model.journal.is_empty():
-		_hint.text = "Маяк: " + String(model.journal[-1].body)
+	elif model.trial_feedback() != "":
+		_hint.text = model.trial_feedback()
+	elif model.entry_line != "":
+		_hint.text = "Маяк: " + model.entry_line
 	else:
 		_hint.text = "Покой — безопасная остановка. Новые шкалы запасов не используются."
-	var index := Model.STAGES.find(model.stage)
 	for i in range(_chips.size()):
-		_chips[i].add_theme_color_override("font_color", Color("8af0d4") if i < index else (Color("ffd166") if i == index else Color("7594a5")))
+		var id: String = Model.LOCATION_ORDER[i]
+		var current: bool = id == model.destination_id or (model.destination_id == "" and id == model.location_id)
+		_chips[i].add_theme_color_override("font_color", Color("ffd166") if current else (Color("8af0d4") if id in model.location_history else Color("7594a5")))
 	_view.queue_redraw()

@@ -77,17 +77,26 @@ func _draw_canyon() -> void:
 	_draw_wreck(_point(Vector2(0.94, 0.5)))
 	_text(Vector2(24, 22), "КЕРНА / ВНЕШНИЙ КОНТУР", CYAN, 12)
 	var radio := clampf((model.player.x - 0.07) / 0.84, 0.0, 1.0)
-	if model.stage in ["briefing", "outbound"]:
+	if model.stage in ["briefing", "outbound", "to_scout"]:
 		_text(Vector2(maxf(24, size.x - 208), 22), "СИГНАЛ  %02d%%" % int(radio * 100), GOLD, 12)
 		for ring in range(3):
 			var radius := 16.0 + ring * 13.0 + fmod(model.stage_seconds * 9, 13)
 			draw_arc(_point(Vector2(0.94, 0.5)), radius, PI * 0.68, PI * 1.32, 18, Color(0.54, 0.94, 0.83, 0.25), 1)
-	if model.stage == "return":
+	if model.stage in ["return", "homebound"]:
 		_text(Vector2(maxf(24, size.x - 208), 22), "БУРЯ / СНОС " + ("↓" if model.wind >= 0 else "↑"), GOLD, 12)
 		for i in range(52):
 			var p := Vector2(fmod(i * 79.0 + model.stage_seconds * 110, maxf(1, size.x)), fmod(i * 43.0, maxf(1, size.y)))
 			draw_line(p, p + Vector2(15, 3 + model.wind * 140), Color(0.85, 0.69, 0.42, 0.28), 2)
 	_draw_ranger(_point(model.player), model.battery_secured)
+	for id in Model.LOCATION_ORDER:
+		var x: float = Model.LOCATIONS[id].x
+		var p := _point(Vector2(x, 0.96))
+		var col := GOLD if id == model.destination_id else CYAN
+		draw_line(p + Vector2(0, -11), p + Vector2(0, -3), col, 2)
+		draw_rect(Rect2(p + Vector2(-3, -16), Vector2(6, 6)), col)
+		var label := "ШЛЮЗ" if id == "airlock" else ("ПОЛЕ ОБЛОМКОВ" if id == "debris" else "ОСТОВ")
+		_text(Vector2(clampf(p.x - 24, 24, size.x - 115), size.y - 24), label, col, 10, 112)
+	_text(Vector2(22, size.y - 8), "Маяк: " + model.entry_line, DIM, 11, size.x - 44)
 	if model.stage == "briefing":
 		_text(Vector2(size.x * 0.18, size.y * 0.47), "ЗА ПОЗЫВНЫМ — В УЩЕЛЬЕ", Color("e6f4f0"), 18, size.x * 0.72)
 		_text(Vector2(size.x * 0.18, size.y * 0.47 + 23), "Разведчик. Обломки. Чужая история.", DIM, 13, size.x * 0.72)
@@ -112,7 +121,7 @@ func _draw_ranger(center: Vector2, carrying: bool) -> void:
 	draw_rect(Rect2(center + Vector2(-11, 17), Vector2(26, 4)), Color(0, 0, 0, 0.45))
 	draw_rect(Rect2(center + Vector2(-7, -4), Vector2(15, 22)), Color("37626c"))
 	draw_rect(Rect2(center + Vector2(-8, -17), Vector2(17, 15)), Color("c0d8d3"))
-	draw_rect(Rect2(center + Vector2(-5 if model.stage == "return" else 0, -13), Vector2(9, 7)), Color("112b39"))
+	draw_rect(Rect2(center + Vector2(-5 if model.stage in ["return", "homebound"] else 0, -13), Vector2(9, 7)), Color("112b39"))
 	draw_rect(Rect2(center + Vector2(-6, 18), Vector2(5, 6)), Color("7594a5"))
 	draw_rect(Rect2(center + Vector2(3, 18), Vector2(5, 6)), Color("7594a5"))
 	draw_rect(Rect2(center + Vector2(9, 0), Vector2(11, 4)), CYAN)
@@ -121,22 +130,26 @@ func _draw_ranger(center: Vector2, carrying: bool) -> void:
 		draw_rect(Rect2(center + Vector2(15, 8), Vector2(10, 3)), CYAN)
 
 func _draw_salvage() -> void:
-	_text(Vector2(22, 24), "СЕВЕР-3 / РАЗБОР ОБЛОМКОВ", GOLD, 13)
+	_text(Vector2(22, 24), "ЗАЖИМ / " + ("ОБУЧАЮЩАЯ ПОПЫТКА" if model.clamp.practice else "ТОЧНЫЕ ИМПУЛЬСЫ"), GOLD, 13)
 	var f := _field()
 	_box(Rect2(_point(Vector2(0.15, 0.04)), f.size * Vector2(0.58, 0.91)), Color("1e303b"), Color("4d6569"))
 	for i in range(3):
 		var p := _point(Vector2(0.34 + i * 0.10, Model.PART_TARGETS[i]))
 		var done: bool = i < model.collected_parts.size()
-		var col := CYAN if done else GOLD
+		var col := CYAN if done else (GOLD if i == model.collected_parts.size() else DIM)
 		_box(Rect2(p - Vector2(15, 10), Vector2(30, 20)), Color("28444b"), col)
 		draw_line(p - Vector2(11, 0), p + Vector2(11, 0), col, 3)
 		_text(p + Vector2(-10, 27), "✓" if done else "0%d" % (i + 1), col, 12)
 	var target: float = model.target_value()
-	var zone := Rect2(_point(Vector2(0.19, target - 0.105)), f.size * Vector2(0.58, 0.21))
+	var width: float = model.clamp.half_width
+	var zone := Rect2(_point(Vector2(0.19, target - width)), f.size * Vector2(0.58, width * 2.0))
 	draw_rect(zone, Color(0.54, 0.94, 0.83, 0.10))
 	draw_rect(zone, CYAN, false, 2)
 	_draw_tool(_point(Vector2(0.73, model.cursor)))
-	_text(Vector2(22, size.y - 10), "Совмести захват с зоной детали. Соседние детали сохраняются.", DIM, 12, size.x - 44)
+	var pulse := Rect2(_point(Vector2(0.83, 0.08)), Vector2(8, f.size.y * 0.72))
+	draw_rect(pulse, Color("233b49"))
+	draw_rect(Rect2(pulse.position, Vector2(8, pulse.size.y * clampf(model.clamp.pulse_seconds / model.clamp.pulse_limit, 0, 1))), GOLD)
+	_text(Vector2(22, size.y - 10), model.clamp.feedback, Color("ef9f84") if model.clamp.state == "retry" else DIM, 11, size.x - 44)
 
 func _draw_adapter() -> void:
 	_text(Vector2(22, 24), "ПОЛЕВАЯ СБОРКА / ПЕРЕХОДНИК", CYAN, 13)
@@ -156,24 +169,27 @@ func _draw_adapter() -> void:
 		_text(center + Vector2(-6, 6), "✓" if done else ("A" if i != 1 else "B"), col, 18)
 	var caption := "НЕЙТРАЛЬ → СЛЕДУЮЩИЙ КОНТАКТ" if model.awaiting_neutral else "ОБОЙМА   →   КОНТАКТ   →   ТЕСТ"
 	_text(_point(Vector2(0.20, 0.76)), caption, GOLD, 12, size.x * 0.65)
-	_text(Vector2(22, size.y - 10), "Гребёнка + обойма + проводник. Это наш ключ к чужому блоку.", DIM, 12, size.x - 44)
+	_text(Vector2(22, size.y - 10), "Маяк: " + model.entry_line, DIM, 11, size.x - 44)
 
 func _draw_power() -> void:
-	_text(Vector2(22, 24), "БЛОК ПИТАНИЯ / РАЗГРУЗКА ЗАМКА", GOLD, 13)
+	_text(Vector2(22, 24), "БЛОК ПИТАНИЯ / ОКНА КОНТАКТОВ", GOLD, 13)
 	var f := _field()
-	_box(Rect2(_point(Vector2(0.18, 0.07)), f.size * Vector2(0.48, 0.84)), Color("22323c"), Color("7c8372"))
+	_box(Rect2(_point(Vector2(0.14, 0.07)), f.size * Vector2(0.72, 0.84)), Color("172e37"), Color("537d7b"))
 	for i in range(3):
-		var center := _point(Vector2(0.29 + i * 0.12, 0.48))
-		_box(Rect2(center - Vector2(16, f.size.y * 0.25), Vector2(32, f.size.y * 0.5)), Color("31463e"), GOLD)
-		for cell in range(4):
-			draw_rect(Rect2(center + Vector2(-10, -f.size.y * 0.2 + cell * f.size.y * 0.12), Vector2(20, 6)), CYAN if cell < 3 else Color("526a50"))
-	var zone := Rect2(_point(Vector2(0.73, 0.555)), f.size * Vector2(0.16, 0.23))
-	draw_line(_point(Vector2(0.81, 0.06)), _point(Vector2(0.81, 0.94)), DIM, 3)
-	draw_rect(zone, Color(0.54, 0.94, 0.83, 0.12))
-	draw_rect(zone, CYAN, false, 2)
-	var marker := _point(Vector2(0.81, model.cursor))
-	draw_colored_polygon(PackedVector2Array([marker + Vector2(-19, 0), marker + Vector2(0, -8), marker + Vector2(19, 0), marker + Vector2(0, 8)]), GOLD)
-	_text(Vector2(22, size.y - 10), "Вверх/вниз — только каретка. Продвижение здесь остановлено.", DIM, 12, size.x - 44)
+		var center := _point(Vector2(0.29 + i * 0.21, 0.40))
+		var done: bool = i < model.power.window_index
+		var current: bool = i == model.power.window_index
+		var col := CYAN if done else (GOLD if current else DIM)
+		if current and model.power.phase == "retry": col = Color("ef9f84")
+		if current and model.power.phase == "neutral": col = CYAN
+		_box(Rect2(center - Vector2(24, 23), Vector2(48, 46)), Color("0b1c29"), col)
+		_text(center + Vector2(-5, 6), "✓" if done else ("A" if i != 1 else "B"), col, 18)
+		_text(center + Vector2(-21, 40), "ОКНО %d" % (i + 1), col, 10)
+	var cue := "ОТКРЫТЬ A ↑" if model.power.expected_direction() == &"OPEN" else "ЗАКРЫТЬ B ↓"
+	if model.power.phase == "neutral": cue = "НЕЙТРАЛЬ  ·  ОТПУСТИ ОБА"
+	elif model.power.phase == "retry": cue = "ПОВТОРИ " + cue if model.power.armed else "ПОВТОР ОКНА  ·  СНАЧАЛА НЕЙТРАЛЬ"
+	_text(_point(Vector2(0.20, 0.78)), cue, GOLD, 14, size.x * 0.70)
+	_text(Vector2(22, size.y - 10), model.power.feedback, Color("ef9f84") if model.power.phase == "retry" else DIM, 11, size.x - 44)
 
 func _draw_tool(p: Vector2) -> void:
 	draw_line(_point(Vector2(0.90, 0.05)), Vector2(p.x + 28, p.y), Color("567680"), 5)
