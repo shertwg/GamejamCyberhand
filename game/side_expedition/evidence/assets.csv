@@ -1,0 +1,3 @@
+asset,source,license_or_terms,usage,verification
+side_expedition_visuals,Original procedural GDScript drawing in expedition_view.gd,Project-authored code; no external raster or audio assets,Canyon; ranger; wreck; salvage; adapter; battery; weather,Rendered with Godot 4.4.1 and reviewed local captures
+existing_manual_pad_and_theme,Read-only references to game/ui/manual_pad.gd and game/ui/terminal_style.gd,Existing project components,Standalone emulator panel and shared visual theme,Referenced source files unchanged
