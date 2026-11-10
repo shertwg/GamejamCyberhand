@@ -1,0 +1,421 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Theme" path="res://game/ui/theme/default_theme.tres" id="1_bo5n3"]
+[ext_resource type="Script" path="res://game/ui/game_screen.gd" id="2_akwpp"]
+[ext_resource type="Script" path="res://game/ui/channel_meter.gd" id="3_0ly6l"]
+[ext_resource type="PackedScene" path="res://game/ui/emulator_pad.tscn" id="4_ibohl"]
+[ext_resource type="Script" path="res://game/ui/emulator_pad.gd" id="5_0wxvw"]
+
+[node name="GameScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme = ExtResource("1_bo5n3")
+script = ExtResource("2_akwpp")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.968627, 0.972549, 0.976471, 1)
+
+[node name="SafeAreaMargin" type="MarginContainer" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 25
+theme_override_constants/margin_bottom = 17
+
+[node name="PageScroll" type="ScrollContainer" parent="SafeAreaMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="PageCenter" type="CenterContainer" parent="SafeAreaMargin/PageScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PageContent" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter"]
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 4
+
+[node name="PageHeader" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="BrandLine" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BrandMark" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "◌"
+
+[node name="BrandTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "ОРБИТАЛЬНАЯ МАСТЕРСКАЯ"
+autowrap_mode = 3
+
+[node name="KickerLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "ДЕМО / УРОВЕНЬ REPAIR-2"
+autowrap_mode = 3
+
+[node name="PageTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PageTitle"
+text = "Игровая оболочка"
+autowrap_mode = 3
+
+[node name="PageDescriptionLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Демонстрация без захвата и таймера. Адаптация темпа не подключена."
+autowrap_mode = 3
+
+[node name="HeaderDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="CommandStatusSection" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "ТЕКУЩАЯ КОМАНДА"
+autowrap_mode = 3
+
+[node name="SectionDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="SectionBody" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="CommandGrid" type="GridContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection/SectionBody"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 4
+columns = 2
+
+[node name="CommandLine" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection/SectionBody/CommandGrid"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="CommandLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection/SectionBody/CommandGrid/CommandLine"]
+layout_mode = 2
+theme_type_variation = &"MetricLabel"
+text = "REST"
+
+[node name="IntensityLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection/SectionBody/CommandGrid/CommandLine"]
+layout_mode = 2
+theme_type_variation = &"SubtleLabel"
+text = "Интенсивность 0.00"
+vertical_alignment = 1
+
+[node name="HintLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/CommandStatusSection/SectionBody/CommandGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Покой. Оба канала ниже демонстрационного порога."
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ChannelMonitorSection" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "КАНАЛЫ"
+autowrap_mode = 3
+
+[node name="SectionSubtitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "0.00—1.00 · отметка демонстрационного порога 0.35"
+autowrap_mode = 3
+
+[node name="SectionDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="SectionBody" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="MonitorGrid" type="GridContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="MeterRowA" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MeterHeader" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA"]
+layout_mode = 2
+
+[node name="ChannelTitleA" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA/MeterHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "КАНАЛ A · OPEN"
+autowrap_mode = 3
+
+[node name="ValueLabelA" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA/MeterHeader"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_type_variation = &"SignalValueLabel"
+text = "0.00"
+horizontal_alignment = 2
+
+[node name="ChannelAMeter" type="Control" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA"]
+custom_minimum_size = Vector2(180, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("3_0ly6l")
+
+[node name="MeterScaleRow" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA"]
+layout_mode = 2
+
+[node name="ScaleMin" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA/MeterScaleRow"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "0.00"
+
+[node name="ScaleThreshold" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA/MeterScaleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "порог 0.35"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ScaleMax" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowA/MeterScaleRow"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "1.00"
+horizontal_alignment = 2
+
+[node name="MeterRowB" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MeterHeader" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB"]
+layout_mode = 2
+
+[node name="ChannelTitleB" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB/MeterHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "КАНАЛ B · CLOSE"
+autowrap_mode = 3
+
+[node name="ValueLabelB" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB/MeterHeader"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_type_variation = &"SignalValueLabel"
+text = "0.00"
+horizontal_alignment = 2
+
+[node name="ChannelBMeter" type="Control" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB"]
+custom_minimum_size = Vector2(180, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("3_0ly6l")
+
+[node name="MeterScaleRow" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB"]
+layout_mode = 2
+
+[node name="ScaleMin" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB/MeterScaleRow"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "0.00"
+
+[node name="ScaleThreshold" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB/MeterScaleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "порог 0.35"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ScaleMax" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ChannelMonitorSection/SectionBody/MonitorGrid/MeterRowB/MeterScaleRow"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "1.00"
+horizontal_alignment = 2
+
+[node name="EmulatorPad" type="PanelContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent" instance=ExtResource("4_ibohl")]
+layout_mode = 2
+size_flags_horizontal = 3
+theme = ExtResource("1_bo5n3")
+theme_type_variation = &"FieldSurfacePanel"
+script = ExtResource("5_0wxvw")
+
+[node name="EventStatusLine" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EventLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/EventStatusLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Событие демо не выбрано."
+autowrap_mode = 3
+
+[node name="EventActionsGrid" type="GridContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+columns = 3
+
+[node name="SuccessEventButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/EventActionsGrid"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Успех"
+
+[node name="MissEventButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/EventActionsGrid"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Промах"
+
+[node name="StaleSignalButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/EventActionsGrid"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Потеря сигнала"
+
+[node name="NavActionsGrid" type="GridContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="PauseButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/NavActionsGrid"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Пауза"
+
+[node name="ExitButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/NavActionsGrid"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Выход"
+
+[node name="FinishDemoButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/NavActionsGrid"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPrimaryButton"
+text = "К результату"
+
+[node name="WaitingResumeOverlay" type="ColorRect" parent="."]
+process_mode = 3
+visible = false
+z_index = 100
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.09, 0.17, 0.3, 0.72)
+
+[node name="ResumeSafeMargin" type="MarginContainer" parent="WaitingResumeOverlay"]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 25
+theme_override_constants/margin_bottom = 25
+
+[node name="ResumeCenter" type="CenterContainer" parent="WaitingResumeOverlay/ResumeSafeMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="WaitingResumeCard" type="PanelContainer" parent="WaitingResumeOverlay/ResumeSafeMargin/ResumeCenter"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_type_variation = &"WaitingResumePanel"
+
+[node name="ResumeCardContent" type="VBoxContainer" parent="WaitingResumeOverlay/ResumeSafeMargin/ResumeCenter/WaitingResumeCard"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ResumeEyebrowLabel" type="Label" parent="WaitingResumeOverlay/ResumeSafeMargin/ResumeCenter/WaitingResumeCard/ResumeCardContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "WAITING_RESUME · ОЖИДАНИЕ ПРОДОЛЖЕНИЯ"
+autowrap_mode = 3
+
+[node name="ResumeTitleLabel" type="Label" parent="WaitingResumeOverlay/ResumeSafeMargin/ResumeCenter/WaitingResumeCard/ResumeCardContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "Приложение возвращено в фокус"
+autowrap_mode = 3
+
+[node name="ResumeBodyLabel" type="Label" parent="WaitingResumeOverlay/ResumeSafeMargin/ResumeCenter/WaitingResumeCard/ResumeCardContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Поток ввода был приостановлен при сворачивании, каналы A и B сброшены в безопасное состояние REST."
+autowrap_mode = 3
+
+[node name="ResumeOverlayButton" type="Button" parent="WaitingResumeOverlay/ResumeSafeMargin/ResumeCenter/WaitingResumeCard/ResumeCardContent"]
+process_mode = 3
+custom_minimum_size = Vector2(4400, 1120)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPrimaryButton"
+text = "Продолжить"

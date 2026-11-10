@@ -1,0 +1,118 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Theme" path="res://game/ui/theme/default_theme.tres" id="1_nmcbt"]
+[ext_resource type="Script" path="res://game/ui/pause_screen.gd" id="2_cicty"]
+
+[node name="PauseScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme = ExtResource("1_nmcbt")
+script = ExtResource("2_cicty")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.968627, 0.972549, 0.976471, 1)
+
+[node name="SafeAreaMargin" type="MarginContainer" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 25
+theme_override_constants/margin_bottom = 17
+
+[node name="PageScroll" type="ScrollContainer" parent="SafeAreaMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="PageCenter" type="CenterContainer" parent="SafeAreaMargin/PageScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PageContent" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter"]
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 24
+
+[node name="PageHeader" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="BrandLine" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BrandMark" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "◌"
+
+[node name="BrandTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "ОРБИТАЛЬНАЯ МАСТЕРСКАЯ"
+autowrap_mode = 3
+
+[node name="KickerLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "ПАУЗА / МАРШРУТ СОХРАНЁН"
+autowrap_mode = 3
+
+[node name="PageTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PageTitle"
+text = "Передышка"
+autowrap_mode = 3
+
+[node name="PageDescriptionLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "В демонстрации таймер уровня не запущен."
+autowrap_mode = 3
+
+[node name="HeaderDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="PauseActions" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ResumeButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PauseActions"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPrimaryButton"
+text = "Продолжить маршрут"
+
+[node name="RetryButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PauseActions"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Начать заново"
+
+[node name="MenuButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PauseActions"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "В меню"

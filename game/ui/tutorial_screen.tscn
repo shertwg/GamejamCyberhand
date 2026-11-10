@@ -1,0 +1,238 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Theme" path="res://game/ui/theme/default_theme.tres" id="1_obpm0"]
+[ext_resource type="Script" path="res://game/ui/tutorial_screen.gd" id="2_2ofwm"]
+
+[node name="TutorialScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme = ExtResource("1_obpm0")
+script = ExtResource("2_2ofwm")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.968627, 0.972549, 0.976471, 1)
+
+[node name="SafeAreaMargin" type="MarginContainer" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 25
+theme_override_constants/margin_bottom = 17
+
+[node name="PageScroll" type="ScrollContainer" parent="SafeAreaMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="PageCenter" type="CenterContainer" parent="SafeAreaMargin/PageScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PageContent" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter"]
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 24
+
+[node name="PageHeader" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="BrandLine" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BrandMark" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "◌"
+
+[node name="BrandTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "ОРБИТАЛЬНАЯ МАСТЕРСКАЯ"
+autowrap_mode = 3
+
+[node name="KickerLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "ОБУЧЕНИЕ / 03"
+autowrap_mode = 3
+
+[node name="PageTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PageTitle"
+text = "Четыре коротких сигнала"
+autowrap_mode = 3
+
+[node name="PageDescriptionLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Смотри на подпись и значение, не только на цвет."
+autowrap_mode = 3
+
+[node name="HeaderDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="TutorialSteps" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="StepRow01" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StepNumber01" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow01"]
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "01"
+
+[node name="StepCopy01" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow01"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="StepTitle01" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow01/StepCopy01"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "A выше порога — OPEN"
+autowrap_mode = 3
+
+[node name="StepDetail01" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow01/StepCopy01"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Открытие по каналу A."
+autowrap_mode = 3
+
+[node name="StepRow02" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StepNumber02" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow02"]
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "02"
+
+[node name="StepCopy02" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow02"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="StepTitle02" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow02/StepCopy02"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "B выше порога — CLOSE"
+autowrap_mode = 3
+
+[node name="StepDetail02" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow02/StepCopy02"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Закрытие по каналу B."
+autowrap_mode = 3
+
+[node name="StepRow03" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StepNumber03" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow03"]
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "03"
+
+[node name="StepCopy03" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow03"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="StepTitle03" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow03/StepCopy03"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "Оба выше порога — BOTH"
+autowrap_mode = 3
+
+[node name="StepDetail03" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow03/StepCopy03"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Встречный сигнал безопасно останавливает действие."
+autowrap_mode = 3
+
+[node name="StepRow04" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StepNumber04" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow04"]
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "04"
+
+[node name="StepCopy04" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow04"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="StepTitle04" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow04/StepCopy04"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "Оба ниже порога — REST"
+autowrap_mode = 3
+
+[node name="StepDetail04" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/TutorialSteps/StepRow04/StepCopy04"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Покой. Потеря сигнала отдельно покажет предупреждение."
+autowrap_mode = 3
+
+[node name="TutorialFooterLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Далее можно проверить тестовые значения, успех и промах в режиме «Эмулятор»."
+autowrap_mode = 3
+
+[node name="ActionsRow" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BackButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ActionsRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Назад"
+
+[node name="StartDemoButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ActionsRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPrimaryButton"
+text = "Начать демо"

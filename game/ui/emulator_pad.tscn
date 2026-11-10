@@ -1,0 +1,154 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Theme" path="res://game/ui/theme/default_theme.tres" id="1_4x281"]
+[ext_resource type="Script" path="res://game/ui/emulator_pad.gd" id="2_vuj8n"]
+
+[node name="EmulatorPad" type="PanelContainer"]
+size_flags_horizontal = 3
+theme = ExtResource("1_4x281")
+theme_type_variation = &"FieldSurfacePanel"
+script = ExtResource("2_vuj8n")
+
+[node name="SurfaceMargin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 8
+
+[node name="SurfaceContent" type="VBoxContainer" parent="SurfaceMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="HeaderGrid" type="GridContainer" parent="SurfaceMargin/SurfaceContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 4
+columns = 2
+
+[node name="EmulatorEyebrow" type="Label" parent="SurfaceMargin/SurfaceContent/HeaderGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "ЭМУЛЯТОР · ТОЛЬКО ТЕСТОВЫЙ ВВОД"
+autowrap_mode = 3
+
+[node name="EmulatorSubtitle" type="Label" parent="SurfaceMargin/SurfaceContent/HeaderGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Кнопки касания и ползунки отправляют значения в локальный адаптер."
+autowrap_mode = 3
+
+[node name="PadsGrid" type="GridContainer" parent="SurfaceMargin/SurfaceContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="ChannelAColumn" type="VBoxContainer" parent="SurfaceMargin/SurfaceContent/PadsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="ChannelATitle" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelAColumn"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "ТЕСТОВЫЙ КАНАЛ A → OPEN"
+autowrap_mode = 3
+
+[node name="PadButtonA" type="Button" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelAColumn"]
+custom_minimum_size = Vector2(140, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPadButton"
+button_mask = 0
+text = "КАНАЛ A · OPEN
+[ ОТПУЩЕНО · 0.00 ]"
+
+[node name="SliderA" type="HSlider" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelAColumn"]
+custom_minimum_size = Vector2(0, 28)
+layout_direction = 2
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+page = 0.1
+
+[node name="ScaleRowA" type="HBoxContainer" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelAColumn"]
+layout_mode = 2
+
+[node name="MinLabelA" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelAColumn/ScaleRowA"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "0.00"
+
+[node name="ScaleNoteA" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelAColumn/ScaleRowA"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "Удерживай кнопку или ползунок"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="MaxLabelA" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelAColumn/ScaleRowA"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "1.00"
+horizontal_alignment = 2
+
+[node name="ChannelBColumn" type="VBoxContainer" parent="SurfaceMargin/SurfaceContent/PadsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="ChannelBTitle" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelBColumn"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "ТЕСТОВЫЙ КАНАЛ B → CLOSE"
+autowrap_mode = 3
+
+[node name="PadButtonB" type="Button" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelBColumn"]
+custom_minimum_size = Vector2(140, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPadButton"
+button_mask = 0
+text = "КАНАЛ B · CLOSE
+[ ОТПУЩЕНО · 0.00 ]"
+
+[node name="SliderB" type="HSlider" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelBColumn"]
+custom_minimum_size = Vector2(0, 28)
+layout_direction = 2
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+page = 0.1
+
+[node name="ScaleRowB" type="HBoxContainer" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelBColumn"]
+layout_mode = 2
+
+[node name="MinLabelB" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelBColumn/ScaleRowB"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "0.00"
+
+[node name="ScaleNoteB" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelBColumn/ScaleRowB"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "Удерживай кнопку или ползунок"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="MaxLabelB" type="Label" parent="SurfaceMargin/SurfaceContent/PadsGrid/ChannelBColumn/ScaleRowB"]
+layout_mode = 2
+theme_type_variation = &"SubtlestLabel"
+text = "1.00"
+horizontal_alignment = 2

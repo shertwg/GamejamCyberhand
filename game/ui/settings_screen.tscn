@@ -1,0 +1,205 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Theme" path="res://game/ui/theme/default_theme.tres" id="1_elb0x"]
+[ext_resource type="Script" path="res://game/ui/settings_screen.gd" id="2_qtt02"]
+
+[node name="SettingsScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme = ExtResource("1_elb0x")
+script = ExtResource("2_qtt02")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.968627, 0.972549, 0.976471, 1)
+
+[node name="SafeAreaMargin" type="MarginContainer" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 25
+theme_override_constants/margin_bottom = 17
+
+[node name="PageScroll" type="ScrollContainer" parent="SafeAreaMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="PageCenter" type="CenterContainer" parent="SafeAreaMargin/PageScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PageContent" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter"]
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 24
+
+[node name="PageHeader" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="BrandLine" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BrandMark" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "◌"
+
+[node name="BrandTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "ОРБИТАЛЬНАЯ МАСТЕРСКАЯ"
+autowrap_mode = 3
+
+[node name="KickerLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "НАСТРОЙКИ / 01"
+autowrap_mode = 3
+
+[node name="PageTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PageTitle"
+text = "Подготовь управление"
+autowrap_mode = 3
+
+[node name="PageDescriptionLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Рука и уровень пока сохраняются локально в UI."
+autowrap_mode = 3
+
+[node name="HeaderDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="HandSection" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/HandSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "ВЕДУЩАЯ РУКА"
+autowrap_mode = 3
+
+[node name="SectionSubtitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/HandSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Эмулятор разместит контролы с этой стороны."
+autowrap_mode = 3
+
+[node name="SectionDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/HandSection"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="SectionBody" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/HandSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="HandRow" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/HandSection/SectionBody"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LeftHandButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/HandSection/SectionBody/HandRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSChoiceButton"
+toggle_mode = true
+text = "ЛЕВАЯ"
+
+[node name="RightHandButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/HandSection/SectionBody/HandRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSSelectedChoiceButton"
+toggle_mode = true
+button_pressed = true
+text = "ПРАВАЯ"
+
+[node name="LevelSection" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/LevelSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "УРОВЕНЬ"
+autowrap_mode = 3
+
+[node name="SectionSubtitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/LevelSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Демонстрационный список, не игровые данные из контракта."
+autowrap_mode = 3
+
+[node name="SectionDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/LevelSection"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="SectionBody" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/LevelSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="LevelOptionButton" type="OptionButton" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/LevelSection/SectionBody"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+selected = 1
+item_count = 3
+popup/item_0/text = "1 · Крупные детали"
+popup/item_0/id = 0
+popup/item_1/text = "2 · Перенос детали"
+popup/item_1/id = 1
+popup/item_2/text = "3 · Точная установка"
+popup/item_2/id = 2
+
+[node name="ActionsRow" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BackButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ActionsRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "Назад"
+
+[node name="ContinueButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ActionsRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPrimaryButton"
+text = "Продолжить"

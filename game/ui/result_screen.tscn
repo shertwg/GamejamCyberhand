@@ -1,0 +1,269 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Theme" path="res://game/ui/theme/default_theme.tres" id="1_tbm2q"]
+[ext_resource type="Script" path="res://game/ui/result_screen.gd" id="2_0rmbh"]
+
+[node name="ResultScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme = ExtResource("1_tbm2q")
+script = ExtResource("2_0rmbh")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.968627, 0.972549, 0.976471, 1)
+
+[node name="SafeAreaMargin" type="MarginContainer" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 25
+theme_override_constants/margin_bottom = 17
+
+[node name="PageScroll" type="ScrollContainer" parent="SafeAreaMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="PageCenter" type="CenterContainer" parent="SafeAreaMargin/PageScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PageContent" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter"]
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 24
+
+[node name="PageHeader" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="BrandLine" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BrandMark" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+theme_type_variation = &"EyebrowLabel"
+text = "◌"
+
+[node name="BrandTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader/BrandLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "ОРБИТАЛЬНАЯ МАСТЕРСКАЯ"
+autowrap_mode = 3
+
+[node name="KickerLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtlestLabel"
+text = "АРХИВ / СВОДКА"
+autowrap_mode = 3
+
+[node name="PageTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PageTitle"
+text = "Смена завершена"
+autowrap_mode = 3
+
+[node name="PageDescriptionLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Демонстрационные данные · пример SessionSummary из контракта."
+autowrap_mode = 3
+
+[node name="HeaderDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/PageHeader"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="SummaryMetaLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"EyebrowLabel"
+text = "УРОВЕНЬ repair-2 · ИСТОЧНИК REPLAY"
+autowrap_mode = 3
+
+[node name="SummaryDisclaimerLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Это пример структуры данных, а не запись сыгранного уровня."
+autowrap_mode = 3
+
+[node name="SummarySection" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SectionTitle"
+text = "СВОДКА"
+autowrap_mode = 3
+
+[node name="SectionDivider" type="ColorRect" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+size_flags_horizontal = 3
+color = Color(0.87451, 0.882353, 0.901961, 1)
+
+[node name="SectionBody" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="MetricsGrid" type="GridContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="ActiveTimeMetric" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MetricTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/ActiveTimeMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Активное время"
+autowrap_mode = 3
+
+[node name="MetricValue" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/ActiveTimeMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MetricLabel"
+text = "1:30"
+autowrap_mode = 3
+
+[node name="SuccessRateMetric" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MetricTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/SuccessRateMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Успешность"
+autowrap_mode = 3
+
+[node name="MetricValue" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/SuccessRateMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SuccessStateLabel"
+text = "80% (4 / 5)"
+autowrap_mode = 3
+
+[node name="AttemptsMetric" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MetricTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/AttemptsMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Попытки · успехи · промахи"
+autowrap_mode = 3
+
+[node name="MetricValue" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/AttemptsMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MetricLabel"
+text = "5 · 4 · 1"
+autowrap_mode = 3
+
+[node name="BothSignalMetric" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MetricTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/BothSignalMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Встречный сигнал"
+autowrap_mode = 3
+
+[node name="MetricValue" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/BothSignalMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"WarningStateLabel"
+text = "5% (1500 / 30000)"
+autowrap_mode = 3
+
+[node name="ReactionMetric" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MetricTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/ReactionMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Медиана реакции"
+autowrap_mode = 3
+
+[node name="MetricValue" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/ReactionMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MetricLabel"
+text = "420 мс"
+autowrap_mode = 3
+
+[node name="HoldTargetMetric" type="VBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MetricTitle" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/HoldTargetMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SubtleLabel"
+text = "Удержание в цели"
+autowrap_mode = 3
+
+[node name="MetricValue" type="Label" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/SummarySection/SectionBody/MetricsGrid/HoldTargetMetric"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MetricLabel"
+text = "80% (8000 / 10000)"
+autowrap_mode = 3
+
+[node name="ActionsRow" type="HBoxContainer" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MenuButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ActionsRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSQuietButton"
+text = "В меню"
+
+[node name="RetryButton" type="Button" parent="SafeAreaMargin/PageScroll/PageCenter/PageContent/ActionsRow"]
+custom_minimum_size = Vector2(0, 960)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ADSPrimaryButton"
+text = "Повторить"
