@@ -8,6 +8,8 @@ const Config = preload("res://game/core/input_config.gd")
 const Pipeline = preload("res://game/core/input_pipeline.gd")
 const Source = preload("res://game/core/manual_input_source.gd")
 const TrialChecks = preload("res://game/side_expedition/tests/trial_checks.gd")
+const Pilot = preload("res://game/side_expedition/tests/demo_pilot.gd")
+const ExpeditionChecks = preload("res://game/side_expedition/tests/expedition_checks.gd")
 
 var checks := 0
 var failures := 0
@@ -35,33 +37,10 @@ func check(value: bool, message: String) -> void:
 		push_error(message)
 
 func snapshot(model) -> Array:
-	return [model.stage, model.player, model.cursor, model.active_seconds, model.stage_seconds, model.wind, model.hold_seconds, model.collected_parts.duplicate(), model.adapter_step, model.battery_secured, model.location_id, model.destination_id, model.location_history.duplicate()]
+	return [model.stage, model.player, model.cursor, model.active_seconds, model.stage_seconds, model.wind, model.hold_seconds, model.collected_parts.duplicate(), model.adapter_step, model.battery_secured, model.location_id, model.destination_id, model.location_history.duplicate(), model.weather.clock, model.inventory.duplicate(), model.knockbacks]
 
 func channels(model, strength: float) -> Vector2:
-	if model.awaiting_neutral:
-		return Vector2.ZERO
-	if model.stage == "adapter":
-		return Vector2(strength, 0) if Model.ADAPTER_SEQUENCE[model.adapter_step] == &"OPEN" else Vector2(0, strength)
-	if model.stage == "salvage":
-		if model.clamp.needs_neutral() or (model.clamp.pulse_seconds >= 0.25 and not model.clamp.neutral_seen):
-			return Vector2.ZERO
-		return Vector2(strength, 0) if model.cursor > model.target_value() else Vector2(0, strength)
-	if model.stage == "power":
-		if model.power.needs_neutral(): return Vector2.ZERO
-		return Vector2(strength, 0) if model.power.expected_direction() == &"OPEN" else Vector2(0, strength)
-	var target_y := 0.5
-	if model.stage in ["outbound", "to_scout"]:
-		for wall in Model.WALLS:
-			if wall.end.x + Model.HALF.x > model.player.x:
-				target_y = wall.end.y + Model.HALF.y + 0.035 if wall.position.y == 0.0 else wall.position.y - Model.HALF.y - 0.035
-				break
-	else:
-		for i in range(Model.WALLS.size() - 1, -1, -1):
-			var wall: Rect2 = Model.WALLS[i]
-			if wall.position.x - Model.HALF.x < model.player.x:
-				target_y = wall.end.y + Model.HALF.y + 0.035 if wall.position.y == 0.0 else wall.position.y - Model.HALF.y - 0.035
-				break
-	return Vector2(strength, 0) if model.player.y > target_y else Vector2(0, strength)
+	return Pilot.channels(model, strength)
 
 func route_checks() -> void:
 	for dt in [0.016, 0.05, 0.20]:
@@ -111,10 +90,13 @@ func route_checks() -> void:
 			check(model.collected_parts.size() == 3 and model.adapter_built, label + " salvage precedes adapter")
 			check(model.battery_secured and is_equal_approx(model.player.x, float(Model.LOCATIONS.airlock.x)), label + " battery returned to airlock")
 			check(results.size() == 1, label + " completion delivered once")
-			check(model.result().reward_proposal == [{"item_id": "emergency_battery", "amount": 1}], label + " host receives proposed reward")
+			var battery_reward := 0
+			for item in model.result().reward_proposal:
+				if item.item_id == "emergency_battery": battery_reward += item.amount
+			check(battery_reward == 1, label + " host receives proposed reward")
 			check(model.journal.size() == 8, label + " story beats retained")
 			check(model.location_history == ["airlock", "debris", "scout", "debris", "airlock"], label + " exact three-point round trip")
-			check(points == ["debris_parts", "field_workbench", "scout_power"] and points_valid, label + " interaction points belong to reached locations")
+			check(points == ["debris_parts", "scout_coupler", "scout_workbench", "scout_power"] and points_valid, label + " interaction points belong to reached locations")
 			check(locations.size() == 5 and goals_present, label + " location entry lines and stage goals exist")
 			check(clamp_grades == [true, false, false], label + " difficulty increases only after first successful clamp")
 			var done := snapshot(model)
@@ -209,7 +191,7 @@ func art_state(host, stage: String, entries: Array) -> void:
 	# Explicit art fixture, separate from the actual playthrough assertions.
 	host.model.stage = stage
 	host.model.journal.assign(entries.slice(0, Model.STAGES.find(stage) + 1))
-	var positions := {"outbound": Vector2(0.07, 0.50), "salvage": Vector2(0.40, 0.35), "adapter": Vector2(0.40, 0.35), "to_scout": Vector2(0.60, 0.35), "power": Vector2(0.91, 0.50), "return": Vector2(0.64, 0.68), "homebound": Vector2(0.36, 0.65), "complete": Vector2(0.07, 0.50)}
+	var positions := {"outbound": Vector2(0.07, 0.50), "salvage": Vector2(0.40, 0.35), "choice": Vector2(0.40, 0.35), "scout_salvage": Vector2(0.91, 0.50), "adapter": Vector2(0.91, 0.50), "to_scout": Vector2(0.60, 0.35), "power": Vector2(0.91, 0.50), "return": Vector2(0.64, 0.68), "homebound": Vector2(0.36, 0.65), "complete": Vector2(0.07, 0.50)}
 	host.model.player = positions[stage]
 	host.model.battery_secured = stage in ["return", "homebound", "complete"]
 	host.model.stage_seconds = 3.0
@@ -217,27 +199,36 @@ func art_state(host, stage: String, entries: Array) -> void:
 	host.model.cursor = 0.65 if stage == "power" else 0.30
 	host.model.adapter_step = 1
 	host.model.clamp.begin(0.30, Model.PART_TARGETS[0], true)
+	if stage == "scout_salvage":
+		host.model.clamp.begin(0.50, 0.65, false)
+		host.model.cursor = 0.50
 	host.model.power.begin()
 	var index: int = Model.STAGES.find(stage)
-	var ids := ["airlock", "debris", "debris", "debris", "scout", "scout", "debris", "airlock"]
-	var destinations := ["debris", "", "", "scout", "", "debris", "airlock", ""]
+	var ids := ["airlock", "debris", "debris", "debris", "scout", "scout", "scout", "scout", "debris", "airlock"]
+	var destinations := ["debris", "", "", "scout", "", "", "", "debris", "airlock", ""]
 	host.model.location_id = ids[index]
 	host.model.destination_id = destinations[index]
-	var histories := [
-		["airlock"], ["airlock", "debris"], ["airlock", "debris"], ["airlock", "debris"],
-		["airlock", "debris", "scout"], ["airlock", "debris", "scout"],
-		["airlock", "debris", "scout", "debris"], ["airlock", "debris", "scout", "debris", "airlock"],
-	]
-	host.model.location_history.assign(histories[index])
-	host.model.entry_line = String(entries[index].body).split(".")[0] + "."
-	if stage in ["salvage", "adapter", "power"]:
+	var history := ["airlock"]
+	if index >= 1: history.append("debris")
+	if index >= 4: history.append("scout")
+	if index >= 8: history.append("debris")
+	if index >= 9: history.append("airlock")
+	host.model.location_history.assign(history)
+	host.model.entry_line = "Первый рейс за батареей." if not host.model.first_delivery_done else "Повторная вылазка: выбираем добычу и риск."
+	if stage in ["scout_salvage", "adapter", "power"]:
+		host.model.collected_parts.assign(Model.PARTS)
+		host.model.inventory = {"conductive_scrap": 3, "ceramic_coupler": 1, "rare_coil": 0}
+		host.model.adapter_built = stage == "power"
+	if stage in ["salvage", "scout_salvage", "adapter", "power"]:
 		host.model.player.x = Model.LOCATIONS[host.model.location_id].x
 	host._refresh()
 
 func _run() -> void:
 	TrialChecks.new().run(check)
+	ExpeditionChecks.new().run(check)
 	route_checks()
 	var host = Scene.instantiate()
+	host.persistence_enabled = false
 	root.add_child(host)
 	await process_frame
 	await process_frame
@@ -271,6 +262,7 @@ func _run() -> void:
 	host.model.advance(0.20, host._current)
 	check(host.model.power.failures == 0 and host.model.power.elapsed == trial_time, "resume may remain neutral without losing contact progress")
 	var configured = Scene.instantiate()
+	configured.persistence_enabled = false
 	configured.input_config = Config.new(0.70, 0.50, 0.70, 0.50)
 	configured.visible = false
 	root.add_child(configured)
@@ -282,6 +274,34 @@ func _run() -> void:
 	check(configured._current.direction == &"OPEN", "supplied profile still permits valid input")
 	check(is_equal_approx(configured._pad.on_a, 0.70), "visual thresholds match supplied profile")
 	configured.queue_free()
+	var external = Scene.instantiate()
+	external.persistence_enabled = false
+	external.external_input_mode = true
+	var pause_requests: Array = []
+	var resume_requests: Array = []
+	external.input_pause_requested.connect(func(): pause_requests.append(true))
+	external.input_resume_requested.connect(func(): resume_requests.append(true))
+	root.add_child(external)
+	external.set_process(false)
+	external.start_expedition("external-input")
+	var upstream = Stream.new()
+	external.submit_core_command(upstream.sample(0, 0))
+	external.update_host(0, 0.05)
+	var delivered = upstream.sample(1, 0)
+	external.submit_core_command(delivered)
+	delivered.intensity = 0
+	check(external._current.intensity > 0, "external core commands are consumed as immutable snapshots")
+	var external_before: Vector2 = external.model.player
+	external.update_host(0, 0.05)
+	check(external.model.player.x > external_before.x and not external._pad.visible, "external input drives gameplay with local emulator hidden")
+	var stopped_external := snapshot(external.model)
+	external.submit_core_command(upstream.pipeline.tick(upstream.now + 300))
+	external.update_host(0, 0.10)
+	check(snapshot(external.model) == stopped_external, "external owner watchdog stop freezes expedition")
+	external.suspend_input()
+	external.request_resume()
+	check(not pause_requests.is_empty() and not resume_requests.is_empty() and external._current.pause_required, "external pause/resume requests cannot bypass owner input guard")
+	external.queue_free()
 	var forwarded: Array = []
 	var scene_locations: Array = []
 	host.expedition_completed.connect(func(result): forwarded.append(result))
@@ -293,16 +313,48 @@ func _run() -> void:
 		var values := channels(host.model, 1.0)
 		host.model.advance(0.05, host_stream.sample(values.x, values.y))
 		host_loops += 1
-	check(forwarded.size() == 1 and forwarded[0].run_id == "host-completion", "scene forwards completed run exactly once")
+	check(forwarded.is_empty(), "return prepares reward without awarding before claim")
+	host.claim_reward()
+	check(forwarded.size() == 1 and forwarded[0].run_id == "host-completion", "scene forwards claimed run exactly once")
 	check(scene_locations == ["airlock", "debris", "scout", "debris", "airlock"], "scene forwards the full route to campaign host")
 	host._on_completed(host.model.result())
+	host._on_action()
+	host._on_action()
 	check(forwarded.size() == 1, "scene suppresses duplicate completion callback")
+	check(host.model.stage == "complete" and host.model.run_id == "host-completion", "double reward click cannot start another run")
+	var recovery_host = Scene.instantiate()
+	recovery_host.persistence_enabled = false
+	root.add_child(recovery_host)
+	recovery_host.set_process(false)
+	recovery_host._ledger.data = host._ledger.data.duplicate(true)
+	var recovered_events: Array = []
+	recovery_host.expedition_completed.connect(func(result): recovered_events.append(result))
+	recovery_host.flush_pending_rewards()
+	recovery_host.flush_pending_rewards()
+	check(recovered_events.size() == 1 and recovered_events[0].reward_id == forwarded[0].reward_id, "unacknowledged outbox can be redelivered once with same reward id")
+	check(recovery_host.acknowledge_reward(recovered_events[0].reward_id) and recovery_host._ledger.pending_events().is_empty(), "campaign can acknowledge persisted reward event")
+	recovery_host.queue_free()
 	var full_journal: Array = host.model.journal.duplicate(true)
 	var exits: Array = []
 	host.exit_requested.connect(func(result): exits.append(result))
 	host.start_expedition("abort-check")
 	host._on_exit()
 	check(exits.size() == 1 and not exits[0].completed and exits[0].reward_proposal.is_empty(), "embedded exit has no reward before return")
+	var exit_stream = Stream.new()
+	for i in range(4000):
+		if host.model.stage == "choice": break
+		var values := channels(host.model, 1.0)
+		host.model.advance(0.05, exit_stream.sample(values.x, values.y))
+	host._on_exit()
+	var resume_host = Scene.instantiate()
+	resume_host.persistence_enabled = false
+	root.add_child(resume_host)
+	resume_host.set_process(false)
+	resume_host._ledger.data = host._ledger.data.duplicate(true)
+	check(resume_host.resume_saved() and resume_host.model.stage == "choice" and resume_host.model.inventory.conductive_scrap == 3, "exit from quest and scene reopening preserves collected resources")
+	resume_host._on_menu(1)
+	check(resume_host.model.stage == "outbound" and resume_host.model.inventory.conductive_scrap == 0 and resume_host._ledger.context().first_delivery_done, "new run resets local resources but preserves first-reward history")
+	resume_host.queue_free()
 	host.model.begin("layout-fixture")
 	host._input.clear()
 	host.request_resume()
@@ -333,7 +385,7 @@ func _run() -> void:
 	root.content_scale_size = Vector2i(1152, 648)
 	await process_frame
 	# Art fixtures are synthetic states only; route_checks above use full playthroughs.
-	for stage in ["salvage", "adapter", "to_scout", "power", "return", "homebound", "complete"]:
+	for stage in ["salvage", "choice", "scout_salvage", "adapter", "to_scout", "power", "return", "homebound", "complete"]:
 		art_state(host, stage, full_journal)
 		await capture(host, stage)
 	art_state(host, "power", full_journal)

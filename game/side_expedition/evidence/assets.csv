@@ -1,3 +1,6 @@
 asset,source,license_or_terms,usage,verification
 side_expedition_visuals,Original procedural GDScript drawing in expedition_view.gd,Project-authored code; no external raster or audio assets,Canyon; ranger; wreck; salvage; adapter; battery; weather,Rendered with Godot 4.4.1 and reviewed local captures
 existing_manual_pad_and_theme,Read-only references to game/ui/manual_pad.gd and game/ui/terminal_style.gd,Existing project components,Standalone emulator panel and shared visual theme,Referenced source files unchanged
+quiet_signal_demo_mp4,Godot 4.4.1 Movie Maker from original expedition scene; transcoded using FFmpeg libx264,Project-authored gameplay recording; no external art or audio,47 second automated complete run through existing input core,1125 frames at 24 FPS; full MP4 decode exit 0; recorded reward_events=1
+campaign_reference_png,Unchanged game/main.tscn rendered from this repository in isolated test profile,Existing project-authored scenes and procedural ship artwork,Read-only visual reference for palette and pixel-art direction,Compared against expedition preview; no shared files edited
+quiet_signal_preview_png,Original expedition scene rendered by GPU smoke,Project-authored procedural GDScript artwork,Visual handoff showing the final standalone style,Reviewed at 1152x648 and compact 640x360

@@ -7,6 +7,9 @@ signal journal_added(entry: Dictionary)
 signal stage_changed(stage_id: String)
 signal exit_requested(result: Dictionary)
 signal location_entered(location_id: String, entry_line: String)
+signal checkpoint_changed(checkpoint: Dictionary)
+signal input_pause_requested
+signal input_resume_requested
 
 const Model = preload("res://game/side_expedition/expedition_model.gd")
 const View = preload("res://game/side_expedition/expedition_view.gd")
@@ -17,10 +20,19 @@ const Source = preload("res://game/core/manual_input_source.gd")
 const Command = preload("res://game/core/control_command.gd")
 const Pad = preload("res://game/ui/manual_pad.gd")
 const Style = preload("res://game/ui/terminal_style.gd")
+const Ledger = preload("res://game/side_expedition/demo_ledger.gd")
 
 var model = Model.new()
 ## Set before add_child() to use the campaign's already-approved input profile.
 var input_config = Config.emulator_profile()
+var persistence_enabled: bool = true
+var campaign_context: Dictionary = {}
+var external_input_mode: bool = false
+var _ledger
+var _restoring: bool = false
+var _last_checkpoint_ms: int = 0
+var _save_message: String = ""
+var _delivered_reward_ids: Dictionary = {}
 var _pipeline
 var _source = Source.new()
 var _input
@@ -55,7 +67,11 @@ var _box: VBoxContainer
 func _ready() -> void:
 	name = "QuietSignal"
 	theme = Style.make_theme()
+	_ledger = Ledger.new(Ledger.DEFAULT_PATH if persistence_enabled else "")
+	if not persistence_enabled and not campaign_context.is_empty():
+		_ledger.data.first_delivery_done = bool(campaign_context.get("first_delivery_done", false))
 	_input = Adapter.new()
+	_input.enabled = not external_input_mode
 	add_child(_input)
 	_input.channels_changed.connect(_on_channels)
 	_build_ui()
@@ -94,6 +110,15 @@ func _build_ui() -> void:
 	titles.add_child(_subtitle)
 	_hand = _button("РУКА: ПРАВАЯ", _toggle_hand)
 	header.add_child(_hand)
+	var menu := MenuButton.new()
+	menu.text = "ВЫЛАЗКА ▾"
+	menu.add_theme_font_size_override("font_size", 12)
+	menu.get_popup().add_item("Вернуться к шлюзу с добычей", 0)
+	menu.get_popup().add_item("Новый заход — детали доступны заново", 1)
+	menu.get_popup().add_item("Продолжить сохранённый заход", 2)
+	menu.about_to_popup.connect(func(): suspend_input(); _save_checkpoint())
+	menu.get_popup().id_pressed.connect(_on_menu)
+	header.add_child(menu)
 	var steps := HBoxContainer.new()
 	steps.add_theme_constant_override("separation", 5)
 	_box.add_child(steps)
@@ -190,11 +215,22 @@ func _layout() -> void:
 	_view.custom_minimum_size.y = 96 if compact else 170
 	_pad.custom_minimum_size.y = 64 if compact else 92
 	_pad.set_mirrored(_mirrored)
+	_pad.visible = not external_input_mode
+	_keyboard_hint.visible = not compact and not external_input_mode
+	_hand.visible = not external_input_mode
 
 func _process(delta: float) -> void:
 	update_host(_now(), delta)
+	if Time.get_ticks_msec() - _last_checkpoint_ms >= 1500:
+		_save_checkpoint()
 
 func update_host(now_ms: int, delta: float, heartbeat: bool = true) -> void:
+	if external_input_mode:
+		var skip := _skip_frame
+		_skip_frame = false
+		if _foreground and not skip: model.advance(delta, _current)
+		_refresh()
+		return
 	if _pipeline == null:
 		return
 	_pipeline.tick(now_ms)
@@ -207,6 +243,11 @@ func update_host(now_ms: int, delta: float, heartbeat: bool = true) -> void:
 	_refresh()
 
 func _begin_stream() -> void:
+	if external_input_mode:
+		_current = Command.new(Command.REST, 0, &"SUSPENDED", &"external_owner", true)
+		_skip_frame = true
+		input_pause_requested.emit()
+		return
 	_pipeline.suspend()
 	_input.clear()
 	_pad.clear()
@@ -228,30 +269,107 @@ func _sample(now_ms: int) -> void:
 	_last_sample = now_ms
 
 func _on_channels(_a: float, _b: float) -> void:
-	if _pipeline != null and _foreground:
+	if not external_input_mode and _pipeline != null and _foreground:
 		_sample(_now())
 
 func _on_command(command) -> void:
 	_current = command
 	model.observe_command(command)
 
+func submit_core_command(command: Command) -> bool:
+	if not external_input_mode or command == null or not _foreground: return false
+	_on_command(Command.new(command.direction, command.intensity, command.state, command.reason, command.pause_required))
+	return true
+
 func start_expedition(p_run_id: String = "") -> void:
 	_run_counter += 1
 	var id := p_run_id if p_run_id != "" else "quiet-%d-%d-%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_msec(), _run_counter]
 	_completed_emitted = false
+	_save_message = ""
 	_begin_stream()
-	model.begin(id)
+	model.begin(id, _ledger.context())
 	request_resume()
 	_refresh()
 
+func resume_saved() -> bool:
+	if not _ledger.has_checkpoint(): return false
+	_completed_emitted = false
+	_restoring = true
+	_begin_stream()
+	var ok: bool = model.restore(_ledger.checkpoint(), _ledger.context())
+	_restoring = false
+	if not ok:
+		_ledger.save_checkpoint({})
+		start_expedition()
+		_save_message = "Начат новый заход: все необходимые детали снова доступны."
+		return false
+	request_resume()
+	_refresh()
+	return true
+
+func claim_reward() -> bool:
+	if model.stage != "complete" or _completed_emitted: return false
+	var claim: Dictionary = _ledger.claim(model.result())
+	if not claim.ok:
+		_save_message = "Результат пока не сохранён. Нажми получение награды ещё раз."
+		_refresh()
+		return false
+	_completed_emitted = true
+	if not claim.already_claimed:
+		_deliver_reward(claim.result)
+	_refresh()
+	return not claim.already_claimed
+
+func _deliver_reward(value: Dictionary) -> void:
+	var id: String = value.reward_id
+	if _delivered_reward_ids.has(id): return
+	_delivered_reward_ids[id] = true
+	var embedded := not get_signal_connection_list("expedition_completed").is_empty()
+	expedition_completed.emit(value.duplicate(true))
+	if not embedded: acknowledge_reward(id)
+
+func flush_pending_rewards() -> void:
+	for id in _ledger.pending_events(): _deliver_reward(_ledger.pending_events()[id])
+	_refresh()
+
+func acknowledge_reward(id: String) -> bool:
+	return _ledger.acknowledge(id)
+
+func _save_checkpoint() -> void:
+	_last_checkpoint_ms = Time.get_ticks_msec()
+	if _ledger == null or _restoring or _completed_emitted or model.stage == "briefing": return
+	var value: Dictionary = model.checkpoint()
+	_ledger.save_checkpoint(value)
+	checkpoint_changed.emit(value.duplicate(true))
+
+func _on_menu(id: int) -> void:
+	match id:
+		0: model.request_return(); _save_checkpoint()
+		1: _ledger.save_checkpoint({}); start_expedition()
+		2: resume_saved()
+	_refresh()
+
+func _exit_tree() -> void:
+	_save_checkpoint()
+
 func request_resume() -> void:
 	if not _foreground or _journal.visible:
+		return
+	if external_input_mode:
+		_skip_frame = true
+		input_resume_requested.emit()
 		return
 	_sample(_now())
 	_pipeline.request_resume(_now())
 	_skip_frame = true
 
 func suspend_input() -> void:
+	if external_input_mode:
+		_current = Command.new(Command.REST, 0, &"SUSPENDED", &"external_owner", true)
+		_skip_frame = true
+		input_pause_requested.emit()
+		_refresh()
+		return
 	if _pipeline == null:
 		return
 	_pipeline.suspend()
@@ -261,15 +379,23 @@ func suspend_input() -> void:
 	_refresh()
 
 func _on_action() -> void:
-	if model.stage in ["briefing", "complete"]:
-		start_expedition()
+	if model.stage == "complete":
+		claim_reward()
+	elif model.stage == "briefing":
+		if not _ledger.pending_events().is_empty(): flush_pending_rewards()
+		elif not _ledger.has_checkpoint(): start_expedition()
+		else: resume_saved()
 	else:
 		request_resume()
 
 func _on_exit() -> void:
 	suspend_input()
+	_save_checkpoint()
 	var embedded := not get_signal_connection_list("exit_requested").is_empty()
-	exit_requested.emit(model.result())
+	var value: Dictionary = model.result()
+	value.reward_proposal = []
+	value["reward_pending"] = model.stage == "complete" and not _completed_emitted
+	exit_requested.emit(value)
 	if not embedded:
 		get_tree().quit()
 
@@ -301,17 +427,17 @@ func _notification(what: int) -> void:
 
 func _on_stage_changed(id: String) -> void:
 	stage_changed.emit(id)
+	_save_checkpoint()
 	_refresh()
 
 func _on_journal_added(entry: Dictionary) -> void:
 	journal_added.emit(entry.duplicate(true))
+	_save_checkpoint()
 	_refresh()
 
 func _on_completed(result: Dictionary) -> void:
 	suspend_input()
-	if not _completed_emitted:
-		_completed_emitted = true
-		expedition_completed.emit(result.duplicate(true))
+	_save_checkpoint()
 	_refresh()
 
 func _toggle_hand() -> void:
@@ -333,17 +459,20 @@ func _refresh() -> void:
 	if _view == null:
 		return
 	_objective.text = model.objective()
+	if model.stage == "complete" and _completed_emitted:
+		_objective.text = "Добыча доставлена. Следующий заход — в меню «Вылазка»."
 	_subtitle.text = "QS-01  /  " + model.route_text()
 	_progress.value = model.task_progress()
-	_progress.visible = model.stage in ["salvage", "adapter", "power"]
+	_progress.visible = model.stage in ["salvage", "scout_salvage", "choice", "adapter", "power"]
 	_journal_button.text = "ЖУРНАЛ %d" % model.journal.size()
 	_pause.disabled = model.stage in ["briefing", "complete"]
 	_action.visible = true
 	_action.disabled = false
 	if model.stage == "briefing":
-		_action.text = "ВЫЙТИ ИЗ ШЛЮЗА"
+		_action.text = "ПОЛУЧИТЬ СОХРАНЁННУЮ НАГРАДУ" if not _ledger.pending_events().is_empty() else ("ПРОДОЛЖИТЬ ВЫЛАЗКУ" if _ledger.has_checkpoint() else "ВЫЙТИ ИЗ ШЛЮЗА")
 	elif model.stage == "complete":
-		_action.text = "ПОВТОРИТЬ ЭКСПЕДИЦИЮ"
+		_action.text = "НАГРАДА ПОЛУЧЕНА" if _completed_emitted else "ПОЛУЧИТЬ НАГРАДУ"
+		_action.disabled = _completed_emitted
 	else:
 		_action.text = "ПРОДОЛЖИТЬ"
 		_action.disabled = not _foreground or _current == null or _current.state != &"WAITING_RESUME" or _journal.visible
@@ -353,9 +482,15 @@ func _refresh() -> void:
 		elif state == &"REST": _action.text = "ПОКОЙ / ВКЛЮЧИ A ИЛИ B"
 		elif state in [&"BOTH", &"WAITING_NEUTRAL"]: _action.text = "ОТПУСТИ ОБА КАНАЛА"
 		if model.awaiting_neutral and state in [&"ACTIVE", &"REST"]: _action.text = "ОТПУСТИ ОБА КАНАЛА"
-		if state in [&"ACTIVE", &"REST"] and ((model.stage == "salvage" and model.clamp.needs_neutral()) or (model.stage == "power" and model.power.needs_neutral())):
+		if state in [&"ACTIVE", &"REST"] and ((model.stage in ["salvage", "scout_salvage"] and model.clamp.needs_neutral()) or (model.stage == "power" and model.power.needs_neutral())):
 			_action.text = "ОТПУСТИ ОБА КАНАЛА"
-	if not _foreground:
+	if _save_message != "":
+		_hint.text = _save_message
+	elif model.stage == "complete":
+		if _completed_emitted: _hint.text = "Награда передана. В меню «Вылазка» можно начать следующий заход."
+		elif model.battery_secured: _hint.text = "Первый рейс: батарея + 6 проводников бонусом." if not model.first_delivery_done else "Повтор: батарея + 1 проводник; редкая катушка — если найдена."
+		else: _hint.text = "Вернулись с простой добычей. Батарея и нужные детали останутся доступны в следующем заходе."
+	elif not _foreground:
 		_hint.text = "В фоне всё остановлено. После возврата — нейтраль и «Продолжить»."
 	elif state == &"BOTH" or (state == &"WAITING_NEUTRAL" and _current.reason == &"both_requires_neutral"):
 		_hint.text = "Встречный сигнал: отпусти оба канала. Ошибки и штрафа нет."
