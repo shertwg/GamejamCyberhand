@@ -1,0 +1,198 @@
+{
+  "kind": "automated real-command playthrough",
+  "navigation_simulation_step": 0.0666666666666667,
+  "power_simulation_step": 0.0166666666666667,
+  "result": {
+    "battery_secured": true,
+    "completed": true,
+    "crafted_items": [
+      "scout_adapter"
+    ],
+    "discoveries": [
+      "prior_expedition",
+      "scout_failed_launch"
+    ],
+    "expedition_id": "quiet_signal",
+    "first_clear": true,
+    "inventory": {
+      "ceramic_coupler": 0,
+      "conductive_scrap": 2,
+      "rare_coil": 0
+    },
+    "journal": [
+      {
+        "body": "Керне нужна аварийная батарея. За шлюзом повторяется старый позывной. Путь к разведчику проходит через поле обломков — там найдутся детали для переходника.",
+        "id": "weak_signal",
+        "title": "Зачем идти"
+      },
+      {
+        "body": "На поле найдены проводящие детали. Второй компонент — керамическую втулку — придётся снять с остова.",
+        "id": "debris_found",
+        "title": "Поле обломков"
+      },
+      {
+        "body": "Длинная тропа проходит под скалой. Короткий путь открыт порывам, зато ведёт к укрытию с тайником. Вернуться с простой добычей можно через меню.",
+        "id": "parts_collected",
+        "title": "Развилка"
+      },
+      {
+        "body": "«Стартовый кабель разорвало бурей. Батареи хватило лишь на маяк. Мы остались ждать корабль, который ещё не знал о нас». Теперь ясно, почему разведчик не улетел.",
+        "id": "broken_launch",
+        "title": "Запись под навесом"
+      },
+      {
+        "body": "Разведчик прибыл раньше нас. В обломках был проводник, а на остове сохранилась керамическая втулка — второй вид деталей для чужого разъёма.",
+        "id": "scout_found",
+        "title": "Остов «Севера-3»"
+      },
+      {
+        "body": "Проводник из поля и керамическая втулка с остова соединены. Только теперь инструмент получает доступ к батарее.",
+        "id": "adapter_built",
+        "title": "Крафт завершён"
+      },
+      {
+        "body": "В памяти блока — запись другой посадочной группы: «Мы тоже шли на этот сигнал». Батарея закреплена. По ущелью идёт буря — пора возвращаться в шлюз.",
+        "id": "old_log",
+        "title": "Экспедиция до нас"
+      },
+      {
+        "body": "С батареей вернулись к знакомому полю обломков. Буря продолжается. Остался последний участок до шлюза Керны.",
+        "id": "return_field",
+        "title": "Обратный путь"
+      },
+      {
+        "body": "Батарея доставлена вместе с записью разведчика.",
+        "id": "home",
+        "title": "Возвращение в Керну"
+      }
+    ],
+    "optional_note_found": true,
+    "quest_completed": true,
+    "reward_id": "quiet_signal/recorded-demo-quiet-signal",
+    "reward_proposal": [
+      {
+        "amount": 8,
+        "item_id": "conductive_scrap"
+      },
+      {
+        "amount": 1,
+        "item_id": "emergency_battery"
+      }
+    ],
+    "run_id": "recorded-demo-quiet-signal",
+    "schema_version": 1,
+    "stats": {
+      "active_seconds": 51.808888888891,
+      "clamp_active_seconds": 4.39999999999999,
+      "clamp_failures": 0,
+      "knockbacks": 2,
+      "power_active_seconds": 1.1,
+      "power_failures": 0,
+      "route": "exposed",
+      "wall_contacts": 2
+    },
+    "visited_locations": [
+      "airlock",
+      "debris",
+      "scout",
+      "debris",
+      "airlock"
+    ]
+  },
+  "reward_events": 1,
+  "simulation_frames": 1076,
+  "trace": [
+    {
+      "cue": "У разведчика может уцелеть батарея. Сначала найдём детали в обломках.",
+      "frame": 0,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 0,
+        "rare_coil": 0
+      },
+      "stage": "outbound"
+    },
+    {
+      "cue": "В этих обломках есть всё для переходника. Соберём три детали.",
+      "frame": 73,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 0,
+        "rare_coil": 0
+      },
+      "stage": "salvage"
+    },
+    {
+      "cue": "Проводники собраны. Теперь выбери путь к разведчику.",
+      "frame": 210,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 3,
+        "rare_coil": 0
+      },
+      "stage": "choice"
+    },
+    {
+      "cue": "Открытый участок короче. При сигнале бури беги к навесу или пережди под ним.",
+      "frame": 229,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 3,
+        "rare_coil": 0
+      },
+      "stage": "to_scout"
+    },
+    {
+      "cue": "На остове есть керамическая втулка. Вместе с проводником она станет переходником.",
+      "frame": 383,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 3,
+        "rare_coil": 0
+      },
+      "stage": "scout_salvage"
+    },
+    {
+      "cue": "Оба вида деталей собраны. Собираем переходник у остова.",
+      "frame": 420,
+      "inventory": {
+        "ceramic_coupler": 1,
+        "conductive_scrap": 3,
+        "rare_coil": 0
+      },
+      "stage": "adapter"
+    },
+    {
+      "cue": "Переходник готов. Открываем блок питания.",
+      "frame": 476,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 2,
+        "rare_coil": 0
+      },
+      "stage": "power"
+    },
+    {
+      "cue": "Батарея у нас. Возвращаемся через поле обломков, пока идёт буря.",
+      "frame": 581,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 2,
+        "rare_coil": 0
+      },
+      "stage": "return"
+    },
+    {
+      "cue": "Снова поле обломков. Шлюз уже близко — несём батарею домой.",
+      "frame": 904,
+      "inventory": {
+        "ceramic_coupler": 0,
+        "conductive_scrap": 2,
+        "rare_coil": 0
+      },
+      "stage": "homebound"
+    }
+  ],
+  "trial_simulation_step": 0.0333333333333333,
+  "video_fps": 24
+}
