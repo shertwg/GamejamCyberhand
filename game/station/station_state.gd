@@ -20,7 +20,7 @@ const UPGRADE_COST := {"parts": 6, "food": 2}
 const LAUNCH_COST := {"parts": 8, "food": 4, "energy": 3}
 var path := ""
 var data: Dictionary
-var notice := "Маяк: аварийный запас найден. Начнём с воды — без неё теплица не оживёт."
+var notice := "Аварийный запас найден. Восстанови воду для биосада."
 var save_ok := true
 var _reward_pending := ""
 var _save_elapsed := 0.0
@@ -38,7 +38,7 @@ static func defaults() -> Dictionary:
 		"signal": false, "launched": false, "harvests": 0, "garden_level": 1,
 		"beds": [-1.0, -1.0, -1.0], "crops": ["greens", "greens", "greens"], "intro_seen": false, "air_ready": false,
 		"fuses": 0, "coils": 0, "expedition": {}, "supplies": SUPPLY_START.duplicate(),
-		"quiet_signal_claims": {}}
+		"quiet_signal_claims": {}, "saved_room": 0}
 
 func load_save() -> void:
 	if path.is_empty() or not FileAccess.file_exists(path): return
@@ -80,13 +80,15 @@ func load_save() -> void:
 				data.supplies[key] = clampf(float(value), 0.0, 100.0)
 	data.garden_level = clampi(int(data.garden_level), 1, 2)
 	if not data.quiet_signal_claims is Dictionary: data.quiet_signal_claims = {}
+	var location: Variant = data.saved_room
+	data.saved_room = clampi(int(location), 0, 9) if (location is int or location is float) and is_finite(float(location)) else 0
 	var stored_crops: Variant = raw.get("crops", [])
 	data.crops = ["greens", "greens", "greens"]
 	for i in range(data.beds.size()):
 		if data.garden_level == 2 and stored_crops is Array and i < stored_crops.size() and stored_crops[i] == "berries":
 			data.crops[i] = "berries"
 		data.beds[i] = minf(float(data.beds[i]), grow_seconds(i))
-	notice = "Маяк: всё на месте. Пока тебя не было, станция отдыхала."
+	notice = "Сохранение загружено."
 
 func save() -> bool:
 	if path.is_empty(): return true # In-memory test fixture.
@@ -304,7 +306,7 @@ func upgrade_garden() -> bool:
 func launch() -> bool:
 	if data.launched or not data.signal or not _pay(LAUNCH_COST): return false
 	data.launched = true
-	_publish("Маяк: курс домой проложен. Двигатели работают. Мы справились, рейнджер! Можно продолжить ухаживать за станцией в свободном режиме.")
+	_publish("Курс домой проложен. Доступен свободный режим.")
 	return true
 
 func advance(delta: float, running: bool) -> void:

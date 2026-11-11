@@ -4,10 +4,19 @@ extends Control
 signal channels_changed(a: float, b: float)
 const Copy = preload("res://game/content/copy_catalog.gd")
 const Art = preload("res://game/ui/visual_assets.gd")
+var lever_mode := false
+var _lever_owner := -1
+var _lever_travel := 0.0
+var _lever_visual := 0.0
 var _visual := Vector2.ZERO
 var _phase := 0.0
 
 func _process(delta: float) -> void:
+	if lever_mode:
+		var previous := _lever_visual
+		_lever_visual = move_toward(_lever_visual, _lever_travel, delta * 9.0)
+		if previous != _lever_visual: queue_redraw()
+		return
 	_phase = fmod(_phase + delta, 10.0)
 	if _values.x > 0 and _values.y > 0: queue_redraw()
 	_visual = _visual.lerp(_values, minf(1, delta * 18))
@@ -17,6 +26,11 @@ var _touches: Dictionary = {}
 var _mouse_channel: int = -1
 var _values := Vector2.ZERO
 var mirrored: bool = false
+var input_enabled := true
+var one_hand := false:
+	set(value):
+		one_hand = value
+		queue_redraw()
 var compact := false:
 	set(value):
 		compact = value
@@ -36,6 +50,8 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(0, 92)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
+	visibility_changed.connect(func():
+		if not is_visible_in_tree(): clear())
 
 
 func set_mirrored(value: bool) -> void:
@@ -54,13 +70,18 @@ func set_thresholds(p_on_a: float, p_off_a: float, p_on_b: float, p_off_b: float
 
 
 func clear() -> void:
+	_lever_owner = -1
+	_set_lever(0.0)
 	_touches.clear()
 	_mouse_channel = -1
 	_publish()
 
 
 func _input(event: InputEvent) -> void:
-	if not is_visible_in_tree():
+	if not input_enabled or not is_visible_in_tree():
+		return
+	if lever_mode:
+		_lever_input(event)
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed and not event.canceled:
@@ -84,6 +105,53 @@ func _input(event: InputEvent) -> void:
 			_publish()
 
 
+func _lever_bounds() -> Rect2:
+	var width := minf(size.x, 340.0 if one_hand else 460.0)
+	var left := (0.0 if mirrored else size.x - width) if one_hand else (size.x - width) * 0.5
+	return Rect2(left, 0, width, size.y)
+
+func _lever_input(event: InputEvent) -> void:
+	var owner := -1
+	var pressed := false
+	var ended := false
+	if event is InputEventScreenTouch:
+		owner = event.index
+		pressed = event.pressed and not event.canceled
+		ended = not pressed
+	elif event is InputEventScreenDrag:
+		owner = event.index
+	elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION and event.button_index == MOUSE_BUTTON_LEFT:
+		owner = -2
+		pressed = event.pressed
+		ended = not pressed
+	elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION:
+		owner = -2
+	else:
+		return
+	var point: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
+	var bounds := _lever_bounds()
+	if pressed and _lever_owner == -1 and bounds.has_point(point): _lever_owner = owner
+	if owner != _lever_owner: return
+	if ended:
+		_lever_owner = -1
+		_set_lever(0.0)
+	else:
+		var travel := clampf((point.x - bounds.get_center().x) / maxf(1.0, bounds.size.x * 0.39), -1.0, 1.0)
+		_set_lever(travel)
+	get_viewport().set_input_as_handled()
+
+func _set_lever(travel: float) -> void:
+	if not lever_mode: return
+	_lever_travel = travel
+	var amount := absf(travel)
+	var open := (travel < 0.0) != mirrored
+	var strength := lerpf((on_a if open else on_b) + 0.01, 1.0, inverse_lerp(0.14, 1.0, amount)) if amount > 0.14 else 0.0
+	var next := Vector2(strength, 0.0) if open else Vector2(0.0, strength)
+	if next != _values:
+		_values = next
+		channels_changed.emit(next.x, next.y)
+		queue_redraw()
+
 func _channel_at(viewport_position: Vector2) -> int:
 	var local := get_global_transform_with_canvas().affine_inverse() * viewport_position
 	for channel in range(2):
@@ -93,9 +161,12 @@ func _channel_at(viewport_position: Vector2) -> int:
 
 
 func _pad_rect(channel: int) -> Rect2:
-	var width := (size.x - 16.0) / 2.0
+	var total := minf(size.x, 410.0) if one_hand else size.x
+	var offset := size.x - total if one_hand and not mirrored else 0.0
+	var gap := 8.0 if one_hand else 16.0
+	var width := (total - gap) / 2.0
 	var slot := (1 - channel) if mirrored else channel
-	return Rect2(slot * (width + 16.0), 0, width, size.y)
+	return Rect2(offset + slot * (width + gap), 0, width, size.y)
 
 
 func _publish() -> void:
@@ -111,6 +182,9 @@ func _publish() -> void:
 
 
 func _draw() -> void:
+	if lever_mode:
+		_draw_lever()
+		return
 	var font := ThemeDB.fallback_font
 	for channel in range(2):
 		var rect := _pad_rect(channel)
@@ -165,3 +239,23 @@ func _draw() -> void:
 		var font_size := 18 if available > 160 else 14
 		draw_string(font,Vector2(text_x,panel.position.y+39),text,HORIZONTAL_ALIGNMENT_LEFT,available,font_size,Color("e8f1f5"))
 		draw_string(font,Vector2(text_x,panel.position.y+60),Copy.EMULATOR,HORIZONTAL_ALIGNMENT_LEFT,available,12,Color("7d9bb8"))
+
+func _draw_lever() -> void:
+	var bounds := _lever_bounds()
+	var center := bounds.get_center()
+	var span := bounds.size.x * 0.39
+	var height := minf(31.0, bounds.size.y * 0.45)
+	draw_style_box(_pad_skin, bounds)
+	draw_rect(Rect2(center - Vector2(span, 3), Vector2(span * 2.0, 6)), Color("151821"))
+	draw_rect(Rect2(center - Vector2(1, 9), Vector2(2, 18)), Color("bdad8d"))
+	var end := center + Vector2(span * _lever_visual, 0)
+	var glow := Color("83dac2") if _values.x > 0.0 else (Color("f4ba76") if _values.y > 0.0 else Color("bdb4a2"))
+	draw_line(center, end, glow, 4.0)
+	draw_rect(Rect2(end - Vector2(12, height * 0.5), Vector2(24, height)), Color("141720"))
+	draw_rect(Rect2(end - Vector2(9, height * 0.5 - 3), Vector2(18, height - 6)), glow)
+	var font := ThemeDB.fallback_font
+	var labels := ["Сжать", "Раскрыть"] if mirrored else ["Раскрыть", "Сжать"]
+	for i in range(2):
+		var x := bounds.position.x + i * bounds.size.x * 0.5
+		draw_string(font, Vector2(x, bounds.end.y - 7), labels[i],
+			HORIZONTAL_ALIGNMENT_CENTER, bounds.size.x * 0.5, 13, Color("f3e3ca"))

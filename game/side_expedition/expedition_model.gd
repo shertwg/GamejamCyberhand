@@ -52,9 +52,14 @@ var blocked: bool = false
 var wind: float = 0.0
 var wall_contacts: int = 0
 var journal: Array[Dictionary] = []
+var radio_lines: Array[String] = []
 var location_id: String = "airlock"
 var destination_id: String = "debris"
-var entry_line: String = "У разведчика может уцелеть батарея. Она нужна Керне."
+var entry_line: String = "У разведчика может уцелеть батарея. Она нужна Керне.":
+	set(value):
+		entry_line = value
+		if _suppress_events or value.is_empty(): return
+		if value not in radio_lines: radio_lines.append(value)
 var location_history: Array[String] = []
 var clamp = ClampTrial.new()
 var power = PowerTrial.new()
@@ -92,6 +97,7 @@ func begin(p_run_id: String, context: Dictionary = {}) -> void:
 	wind = 0.0
 	wall_contacts = 0
 	journal.clear()
+	radio_lines.clear()
 	location_history.clear()
 	clamp.begin(0.50, PART_TARGETS[0], true)
 	power.begin()
@@ -433,6 +439,7 @@ func checkpoint() -> Dictionary:
 		"clamp_failures": clamp_failures, "power_failures": power_failures,
 		"clamp_active_seconds": clamp_active_seconds, "power_elapsed": power.elapsed,
 		"power_window": mini(power.window_index, 2), "entry_line": entry_line,
+		"radio_lines": radio_lines.duplicate(),
 	}
 
 func restore(data: Dictionary, context: Dictionary = {}) -> bool:
@@ -475,6 +482,10 @@ func restore(data: Dictionary, context: Dictionary = {}) -> bool:
 	destination_id = data.destination_id
 	location_history.assign(data.location_history)
 	journal.assign(data.journal.duplicate(true))
+	var radio: Variant = data.get("radio_lines", [data.get("entry_line", "")])
+	if radio is Array:
+		for line in radio.slice(0, 64):
+			if line is String and not line.is_empty() and line.length() <= 300: radio_lines.append(line)
 	for key in inventory: inventory[key] = int(data.inventory[key])
 	collected_parts.assign(PARTS.slice(0, int(data.parts)))
 	adapter_step = int(data.adapter_step)

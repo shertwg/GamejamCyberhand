@@ -10,6 +10,7 @@ log_summary_*.md
 *.keystore
 *.jks
 *.apk
+!/release/kerna-android.apk
 *.aab
 *.pck
 builds/

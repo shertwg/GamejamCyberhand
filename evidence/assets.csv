@@ -20,10 +20,11 @@ assets/last_light/loot.png,generated_pixel_art,shertwg / Codex ImageGen,,Origina
 assets/last_light/ranger_walk.png,generated_pixel_art,shertwg / Codex ImageGen,,Original side and front gait atlas with transparent backdrop,Reviewed on desktop,August,Codex
 assets/last_light/ranger_back.png,generated_pixel_art,shertwg / Codex ImageGen,,Original rear gait atlas with transparent backdrop,Reviewed on desktop,August,Codex
 assets/last_light/audio/*.ogg,procedural_music,shertwg / Codex,,Original deterministic score in tools/compose_last_light.py,15 tracks generated locally,August,Codex
-assets/last_light/audio/voice_*.wav,synthetic_dialogue,shertwg dialogue / Microsoft SAPI,,Local Irina Desktop and Pavel speech for original Russian lines,15 WAV files,August,Codex
 assets/last_light/audio/*.wav (effects),procedural_audio,shertwg / Codex,,Original synthesized Foley and ambience in tools/compose_last_light.py,12 WAV files,August,Codex
 assets/last_light/audio/foot_*.wav,procedural_foley,shertwg / Codex,,"Original synthesized boot heel and sole transients, four surface sets, four samples per set",16 PCM WAV clips checked; desktop played via gait,August,Codex
 assets/last_light/opening.png,generated_pixel_art,shertwg / Codex ImageGen,,Original four-shot interior storyboard atlas,Used in Godot opening,August,Codex
-assets/last_light/audio/opening_mix.ogg,procedural_audio,shertwg / Codex; Microsoft SAPI voices,,Original synchronized stereo sound design and seven synthesized Russian lines,33.00 seconds stereo,August,Codex
+assets/last_light/audio/opening_mix.ogg,procedural_audio,shertwg / Codex,,Original engine wind warning impact and cabin ambience with no speech,33.00 seconds stereo,August,Codex
 game/ui/life_support_hud.gd,procedural_UI,shertwg / Codex,,Original pixel gauges and three glyphs drawn in Godot,Desktop landscape and portrait capture,August,Codex
 game/ui/garden_plots.gd,procedural_pixel_art,shertwg / Codex,,Original hydroponic props and animated plants using the existing ship palette,Desktop Godot capture,August,Codex
+assets/last_light/hydroponics.png,generated_pixel_art,shertwg / Codex ImageGen,,Original isolated hydroponic cabinet with copper irrigation and grow lamps,Godot greenhouse screenshot,August,Codex
+assets/last_light/cargo_icons.png,original_pixel_art,shertwg / Codex,,"Four original cargo icons: water, food, fuse and coil",Godot landscape and portrait screenshots,August,Codex

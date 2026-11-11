@@ -11,7 +11,6 @@ const EFFECT_LEVELS := {"click":-24.0,"servo":-21.0,"hatch":-17.0,"craft":-16.0,
 	"pickup":-17.0,"success":-18.0,"warning":-15.0,"impact":-12.0}
 var _music := AudioStreamPlayer.new()
 var _atmos := AudioStreamPlayer.new()
-var _voice := AudioStreamPlayer.new()
 var _effects := AudioStreamPlayer.new()
 var _feet := AudioStreamPlayer.new()
 var _opening := AudioStreamPlayer.new()
@@ -21,11 +20,23 @@ var _track := -1
 var _ambience := ""
 var _fade: Tween
 var muted := false
+var _paused := false
+var vibration_strength := 0.0
+var _last_vibration := -1000
+const CHANNELS := {"music":"KernaMusic", "effects":"KernaEffects"}
 
 func _ready() -> void:
-	for player in [_music,_atmos,_voice,_effects,_feet,_opening]:
+	for player in [_music,_atmos,_effects,_feet,_opening]:
 		add_child(player)
-	_voice.volume_db = -5
+	for bus in CHANNELS.values():
+		if AudioServer.get_bus_index(bus) < 0:
+			AudioServer.add_bus()
+			AudioServer.set_bus_name(AudioServer.bus_count - 1, bus)
+	_music.bus = CHANNELS.music
+	_atmos.bus = CHANNELS.effects
+	_effects.bus = CHANNELS.effects
+	_feet.bus = CHANNELS.effects
+	_opening.bus = CHANNELS.effects
 	_atmos.volume_db = -25
 	_opening.volume_db = -2
 	_opening.stream = OPENING_MIX
@@ -46,11 +57,11 @@ func start_opening() -> void:
 	if _fade != null: _fade.kill()
 	_track = -1
 	_ambience = ""
-	for player in [_music, _atmos, _voice, _feet]:
+	for player in [_music, _atmos, _feet]:
 		player.stop()
 	_effects.stop()
 	_opening.play()
-	_opening.stream_paused = muted
+	_opening.stream_paused = _paused or muted
 
 func stop_opening() -> void:
 	_opening.stop()
@@ -65,7 +76,9 @@ func cue(index: int) -> void:
 	_fade.tween_property(_music,"volume_db",-48.0,0.25)
 	_fade.tween_callback(func():
 		_music.stream = load(PATH + SCORE[index] + ".ogg")
-		if not muted: _music.play()
+		if not muted:
+			_music.play()
+			_music.stream_paused = _paused
 	)
 	_fade.tween_property(_music,"volume_db",-15.0,0.7)
 
@@ -77,14 +90,13 @@ func ambience(id: String) -> void:
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	stream.loop_end = int(stream.get_length()*stream.mix_rate)
 	_atmos.stream = stream
-	if not muted: _atmos.play()
-
-func say(id: String) -> void:
-	if muted or DisplayServer.get_name() == "headless": return
-	_voice.stream = load(PATH+"voice_"+id+".wav")
-	if _voice.stream != null: _voice.play()
+	if not muted:
+		_atmos.play()
+		_atmos.stream_paused = _paused
 
 func fx(id: String) -> void:
+	if id in ["success", "warning", "craft", "pickup"]:
+		vibrate(44 if id in ["success", "warning"] else 24)
 	if muted or DisplayServer.get_name() == "headless": return
 	var sample := load(PATH+id+".wav") as AudioStream
 	var mixer := _effects.get_stream_playback() as AudioStreamPlaybackPolyphonic
@@ -106,12 +118,21 @@ func footstep(room_id: int, depth: float) -> void:
 	_feet.play()
 
 func pause_audio(value: bool) -> void:
-	for player in [_music,_atmos,_voice,_effects,_feet,_opening]:
+	_paused = value
+	for player in [_music,_atmos,_effects,_feet,_opening]:
 		player.stream_paused = value or muted
 
-func toggle() -> void:
-	muted = not muted
-	if not muted:
-		if _music.stream != null and not _music.playing: _music.play()
-		if _atmos.stream != null and not _atmos.playing: _atmos.play()
-	pause_audio(false)
+func apply_settings(values: Dictionary) -> void:
+	vibration_strength = float(values.vibration)
+	for channel in CHANNELS:
+		var gain := float(values.master) * float(values.get(channel, 1.0))
+		var bus := AudioServer.get_bus_index(CHANNELS[channel])
+		AudioServer.set_bus_mute(bus, gain <= 0.0)
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(gain, 0.001)))
+
+func vibrate(duration: int) -> void:
+	if vibration_strength <= 0.0 or not OS.has_feature("mobile"): return
+	var now := Time.get_ticks_msec()
+	if now - _last_vibration < 90: return
+	_last_vibration = now
+	Input.vibrate_handheld(duration, vibration_strength)

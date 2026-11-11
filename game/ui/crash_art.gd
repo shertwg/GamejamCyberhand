@@ -27,6 +27,7 @@ var garden := GardenPlots.new()
 var selected_crop := "greens"
 var repairing := false
 var foreground := true
+var reduce_motion := false
 var navigator: Navigation
 var resource_points: Array = []
 var material_preview := ""
@@ -96,7 +97,7 @@ func _draw_cut() -> void:
 		zoom = 0.99 - minf(age / 6.8, 1.0) * 0.058
 	var crop := source.size * zoom
 	var center := source.get_center()
-	var drift := sin(age * 23.0) * (7.0 if shot == 11 else 4.0) if shot in [1, 11] else 0.0
+	var drift := sin(age * 23.0) * (7.0 if shot == 11 else 4.0) if shot in [1, 11] and not reduce_motion else 0.0
 	center += Vector2(drift + (1.0 - zoom) * 90.0, drift * 0.4)
 	draw_texture_rect_region(_cut_texture(), Rect2(Vector2.ZERO, FRAME),
 		Rect2(center - crop * 0.5, crop))
@@ -293,7 +294,7 @@ func _draw_deposits() -> void:
 		Art.prop(self,"spark",Rect2(pos-Vector2(5,24),Vector2(10,10)*pulse),Color(hue,0.88 if lit else 0.0))
 
 func _weather(strength: float) -> void:
-	var flash := pow(maxf(0,sin(age*1.37+1.8)),24.0)*0.13*strength
+	var flash := 0.0 if reduce_motion else pow(maxf(0,sin(age*1.37+1.8)),24.0)*0.13*strength
 	draw_rect(Rect2(Vector2.ZERO,FRAME),Color(0.59,0.42,0.81,flash))
 	for i in range(46):
 		var x := fposmod(i*93.0+age*(49+i%8*10),395)

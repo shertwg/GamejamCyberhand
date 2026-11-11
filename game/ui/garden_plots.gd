@@ -1,9 +1,9 @@
 extends RefCounted
 
 const State = preload("res://game/station/station_state.gd")
-const CENTERS := [Vector2(91, 137), Vector2(192, 137), Vector2(293, 137)]
+const CENTERS := [Vector2(112, 126), Vector2(192, 123), Vector2(270, 120)]
 const SIZE := Vector2(44, 30)
-const BRONZE := Color("ad7f55")
+const BED = preload("res://assets/last_light/hydroponics.png")
 const MINT := Color("8fe4b9")
 const AMBER := Color("f9cc83")
 const BERRY := Color("e88dbb")
@@ -17,41 +17,27 @@ static func index_at(point: Vector2) -> int:
 	return -1
 
 func draw(canvas: CanvasItem, station: State, age: float) -> void:
+	canvas.draw_texture_rect(BED, Rect2(54, 79, 276, 101), false)
 	for i in range(CENTERS.size()):
 		var p: Vector2 = CENTERS[i]
 		var elapsed := float(station.data.beds[i])
+		if elapsed < 0.0: continue
 		var progress := elapsed / station.grow_seconds(i)
-		var ripe := progress >= 1.0
 		var berries: bool = station.data.crops[i] == "berries"
-		var accent := AMBER if ripe else (BERRY if berries else MINT)
-		# Riveted hydroponic trays use the same dark metal and copper as the ship.
-		canvas.draw_rect(Rect2(p + Vector2(-21, 28), Vector2(43, 4)), Color("1d1527"))
-		for x in [-18, 14]:
-			canvas.draw_rect(Rect2(p + Vector2(x, 11), Vector2(5, 20)), Color("2b2434"))
-			canvas.draw_rect(Rect2(p + Vector2(x + 3, 13), Vector2(2, 17)), Color("645066"))
-			canvas.draw_rect(Rect2(p + Vector2(x - 1, 28), Vector2(8, 3)), BRONZE.darkened(0.42))
-		canvas.draw_rect(Rect2(p + Vector2(-22, -9), Vector2(44, 22)), Color("171426"))
-		canvas.draw_rect(Rect2(p + Vector2(-22, -9), Vector2(44, 2)), BRONZE)
-		canvas.draw_rect(Rect2(p + Vector2(-20, -7), Vector2(40, 10)), Color("383047"))
-		canvas.draw_rect(Rect2(p + Vector2(-18, -6), Vector2(36, 6)), Color("261d2c"))
-		canvas.draw_rect(Rect2(p + Vector2(-20, 1), Vector2(40, 3)), Color("50415b"))
-		canvas.draw_rect(Rect2(p + Vector2(-18, 10), Vector2(36, 1)), Color("362938"))
-		for x in [-20, 18]:
-			canvas.draw_rect(Rect2(p + Vector2(x, 6), Vector2(2, 2)), BRONZE)
-		if elapsed >= 0.0:
-			for plant in range(3):
-				_draw_sprout(canvas, p + Vector2(plant * 12 - 12, 1), progress, berries, age + plant * 0.8 + i)
-		canvas.draw_rect(Rect2(p + Vector2(-15, 6), Vector2(30, 3)), Color("464257"))
-		if ripe:
-			canvas.draw_rect(Rect2(p + Vector2(-15, 6), Vector2(30, 3)), accent)
+		for plant in range(5):
+			var offset := Vector2((plant - 2) * 7, (plant % 3) * 2)
+			_draw_sprout(canvas, p + offset, progress, berries, age + plant * 0.8 + i)
+		if progress < 1.0:
+			var drop := Vector2(p.x + 5, p.y - 19 + floorf(fmod(age * 13 + i * 9, 14.0)))
+			canvas.draw_rect(Rect2(drop, Vector2(1, 2)), Color("83d5d4"))
 
 func draw_feedback(canvas: CanvasItem, station: State, age: float, selected_crop: String) -> void:
 	for i in range(CENTERS.size()):
 		var p: Vector2 = CENTERS[i]
 		var elapsed := float(station.data.beds[i])
-		var marker := p + Vector2(0, -12)
+		var marker := p + Vector2(0, -7)
 		if elapsed < 0.0:
-			canvas.draw_rect(Rect2(marker - Vector2(5, 5), Vector2(11, 11)), Color("242036"))
+			canvas.draw_rect(Rect2(marker - Vector2(4, 4), Vector2(9, 9)), Color("242036b0"))
 			_spark(canvas, marker, BERRY if selected_crop == "berries" else MINT)
 		elif elapsed >= station.grow_seconds(i):
 			_spark(canvas, p + Vector2(-14, -18 + roundf(sin(age * 2.7 + i) * 2.0)), AMBER)

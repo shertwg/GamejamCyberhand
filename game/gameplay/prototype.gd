@@ -93,7 +93,7 @@ func set_foreground(value: bool) -> void:
 			_game_view.emulator_pad.clear()
 			_game_view.emulator_pad.visible = false
 		else:
-			_game_view.emulator_pad.visible = _playing
+			_game_view.emulator_pad.visible = _playing or _expedition_input
 
 
 func _begin_input_stream() -> void:

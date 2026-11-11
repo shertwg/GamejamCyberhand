@@ -1,49 +1,27 @@
-"""Render the opening's original stereo mix from its in-game timeline.
-
-Run from the repo root on Windows with numpy, scipy, soundfile and the
-Microsoft Pavel and Irina Desktop Russian voices installed.
-"""
+"""Render the opening sound effects from its in-game timeline."""
 from ast import literal_eval
-import json
-from math import gcd
 from pathlib import Path
-import subprocess
 
 import numpy as np
-from scipy.signal import butter, resample_poly, sosfilt
+from scipy.signal import butter, sosfilt
 import soundfile as sf
 
 RATE = 32000
 TAU = 2 * np.pi
-OUTPUT = Path("assets/last_light/audio/opening_mix.ogg")
-WORK = Path("work/opening")
 
 
 def read_timeline():
     source = Path("game/ui/opening_timeline.gd").read_text(encoding="utf-8")
     def array(name):
         return literal_eval(source.split(f"const {name} := ", 1)[1].split("\nconst ", 1)[0].strip())
-    return array("TIMECODES"), array("VOICE_CUES")
+    return array("TIMECODES")
 
 
-def record_voice(cues):
-    WORK.mkdir(parents=True, exist_ok=True)
-    request = WORK / "voice.json"
-    request.write_text(json.dumps([
-        {"file": str((WORK / f"{key}.wav").resolve()), "text": line.split(": ", 1)[1],
-         "voice": "Microsoft Pavel" if line.startswith("Рейнджер:") else "Microsoft Irina Desktop"}
-        for _, _, key, line in cues
-    ], ensure_ascii=False), encoding="utf-8")
-    subprocess.run(["pwsh", "-NoProfile", "-File", "tools/voice_opening.ps1",
-                    str(request.resolve())], check=True)
-
-
-def mix_opening(cuts, cues):
+def mix_opening(cuts, output_path):
     length = round(cuts[-1] * RATE)
     t = np.arange(length, dtype=np.float64) / RATE
     rng = np.random.default_rng(9468)
     output = np.zeros((length, 2))
-    duck = np.ones(length)
 
     def fade(start, end):
         x = np.clip((t - start) / (end - start), 0, 1)
@@ -62,15 +40,13 @@ def mix_opening(cuts, cues):
         layer(band(low, high, rng.normal(size=length)) * env * gain, pan)
 
     fail, fall, pov, impact, aftermath = cuts[2:7]
-    for start, end, _, _ in cues:
-        duck -= 0.28 * (fade(start - .14, start + .07) - fade(end - .05, end + .32))
-    power = (fade(0, .75) - fade(fail + .12, fail + 1.28)) * duck
+    power = fade(0, .75) - fade(fail + .12, fail + 1.28)
     engine = .058 * np.sin(TAU * (43*t + .6*np.sin(t*.85)))
     engine += .021 * np.sin(TAU * (86.15*t + .9*np.sin(t*.65)))
     engine += .026 * band(54, 360, rng.normal(size=length))
     layer(power * engine)
     for pitch, pan, offset in [(110,-.5,0),(164.81,.3,.8),(220,.65,1.4),(277.18,-.4,2.2)]:
-        cloud = (fade(offset, offset+2.0) - fade(fail-.15, fail+1.18)) * duck
+        cloud = (fade(offset, offset+2.0) - fade(fail-.15, fail+1.18))
         layer(.018 * np.sin(TAU*(pitch*t + .17*np.sin(t*1.6))) * cloud, pan)
 
     # The relay snaps once, then the drive tone falls away.
@@ -84,7 +60,7 @@ def mix_opening(cuts, cues):
         layer(.052*np.sin(TAU*(pitch*u-28*u*u))*envelope, .24)
 
     # Widen and brighten the rush of atmosphere as the ship banks.
-    entry = (fade(fail+.9, fall+1.9) - fade(impact+.02, impact+.24)) * duck
+    entry = (fade(fail+.9, fall+1.9) - fade(impact+.02, impact+.24))
     swell = .62 + .38 * fade(fall+1.0, impact-.12)
     for pan in [-.57,.59]:
         wind = band(125, 2500, rng.normal(size=length))
@@ -107,31 +83,12 @@ def mix_opening(cuts, cues):
     layer((.014*np.sin(TAU*54*t)+.028*band(125,1240,rng.normal(size=length)))*silence_to_cabin, -.23)
     hit(aftermath+.17, 4.6, 230, 1470, .11, .30)
 
-    for start, end, key, _ in cues:
-        voice, sr = sf.read(WORK / f"{key}.wav", always_2d=True)
-        voice = voice.mean(axis=1)
-        active = np.flatnonzero(np.abs(voice) > .004)
-        if active.size == 0:
-            raise ValueError(f"No speech in {key}")
-        voice = voice[max(0,active[0]-sr//35):min(len(voice),active[-1]+sr//16)]
-        divisor = gcd(RATE, sr)
-        voice = resample_poly(voice, RATE//divisor, sr//divisor)
-        budget = round((end-start-.10)*RATE)
-        if len(voice) > budget:
-            voice = np.interp(np.linspace(0,len(voice)-1,budget),np.arange(len(voice)),voice)
-        voice = band(120 if key in ("orbit","manual","alive") else 250, 4200, voice)
-        voice *= .34 / max(.12, np.max(np.abs(voice)))
-        index = round(start * RATE)
-        output[index:index+len(voice)] += voice[:,None]
-
     output = np.tanh(output * 1.19)
-    with sf.SoundFile(OUTPUT,"w",RATE,2,subtype="VORBIS") as stream:
+    with sf.SoundFile(output_path,"w",RATE,2,subtype="VORBIS") as stream:
         for start in range(0,length,16384):
             stream.write(output[start:start+16384])
-    print(f"{OUTPUT}: {length/RATE:.2f} s, {len(cues)} timed lines, peak {np.max(np.abs(output)):.3f}")
+    print(f"{output_path}: {length/RATE:.2f} s, peak {np.max(np.abs(output)):.3f}")
 
 
 if __name__ == "__main__":
-    timecodes, voice_cues = read_timeline()
-    record_voice(voice_cues)
-    mix_opening(timecodes, voice_cues)
+    mix_opening(read_timeline(), Path("assets/last_light/audio/opening_mix.ogg"))

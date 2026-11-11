@@ -1,4 +1,5 @@
 extends Control
+var reduce_motion := false
 ## Code-native art; visual effects use model time and therefore stop with REST.
 
 const Model = preload("res://game/side_expedition/expedition_model.gd")
@@ -95,9 +96,9 @@ func _draw_canyon() -> void:
 	_text(cover + Vector2(-27, -f.size.y * 0.20 - 8), "УКРЫТИЕ", CYAN, 10)
 	# The cable and warning lamp are driven by the same paused weather clock.
 	var anchor := _point(Vector2(0.93, 0.12))
-	var sway: float = sin(model.weather.clock * 2.0) * model.weather.strength * 14.0
+	var sway: float = 0.0 if reduce_motion else sin(model.weather.clock * 2.0) * model.weather.strength * 14.0
 	draw_polyline(PackedVector2Array([anchor, anchor + Vector2(sway * 0.3, 14), anchor + Vector2(sway, 35)]), Color("a2a991"), 3)
-	var warning_alpha := 0.88 + sin(model.weather.clock * 6.0) * 0.08 if model.weather.phase == "warning" else 1.0
+	var warning_alpha := 0.88 + sin(model.weather.clock * 6.0) * 0.08 if model.weather.phase == "warning" and not reduce_motion else 1.0
 	draw_rect(Rect2(anchor + Vector2(sway - 4, 35), Vector2(8, 7)), Color(GOLD, warning_alpha))
 	_text(Vector2(24, 22), "КЕРНА / ВНЕШНИЙ КОНТУР", CYAN, 12)
 	var radio := clampf((model.player.x - 0.07) / 0.84, 0.0, 1.0)
@@ -121,7 +122,6 @@ func _draw_canyon() -> void:
 		draw_rect(Rect2(p + Vector2(-3, -16), Vector2(6, 6)), col)
 		var label := "ШЛЮЗ" if id == "airlock" else ("ПОЛЕ ОБЛОМКОВ" if id == "debris" else "ОСТОВ")
 		_text(Vector2(clampf(p.x - 24, 24, size.x - 115), size.y - 24), label, col, 10, 112)
-	_text(Vector2(22, size.y - 8), "Маяк: " + model.entry_line, DIM, 11, size.x - 44)
 	if model.stage == "briefing":
 		_text(Vector2(size.x * 0.18, size.y * 0.47), "ЗА ПОЗЫВНЫМ — В УЩЕЛЬЕ", Color("e6f4f0"), 18, size.x * 0.72)
 		_text(Vector2(size.x * 0.18, size.y * 0.47 + 23), "Разведчик. Обломки. Чужая история.", DIM, 13, size.x * 0.72)
@@ -216,7 +216,6 @@ func _draw_adapter() -> void:
 		_text(center + Vector2(-6, 6), "✓" if done else ("A" if i != 1 else "B"), col, 18)
 	var caption := "НЕЙТРАЛЬ → СЛЕДУЮЩИЙ КОНТАКТ" if model.awaiting_neutral else "ОБОЙМА   →   КОНТАКТ   →   ТЕСТ"
 	_text(_point(Vector2(0.20, 0.76)), caption, GOLD, 12, size.x * 0.65)
-	_text(Vector2(22, size.y - 10), "Маяк: " + model.entry_line, DIM, 11, size.x - 44)
 
 func _draw_choice() -> void:
 	_draw_canyon()

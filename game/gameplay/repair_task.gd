@@ -12,6 +12,7 @@ const TITLES := {"tutorial": "Аварийная заслонка", "repair-1": 
 var level_id := ""
 var active_seconds := 0.0
 var done := false
+var reduce_motion := false
 var salvage := false
 var storm_trial := false
 var drill := false
@@ -32,6 +33,13 @@ var _event_number := 0
 var _hint := ""
 var _feedback := 0.0
 var _surge_clock := 0.0
+const PRESSURE_BANDS := [Vector2(0.58,0.81), Vector2(0.48,0.69), Vector2(0.63,0.80)]
+const ROTOR_CENTERS := [0.68, 0.40, 0.58, 0.34]
+const PRESSURE_WINDOW := 3.25
+const PHASE_WINDOW := 1.15
+const SIGNAL_WINDOW := 3.4
+const SIGNAL_SWEEPS := 3
+var _display_clock := 0.0
 var _pressure_hold := 0.0
 var _right_phase := 1.0
 var _signal_clock := 0.0
@@ -51,6 +59,11 @@ func setup(id: String, difficulty: int, session: String, attempt: int) -> void:
 	resized.connect(queue_redraw)
 	_event(GameEvent.ACTION_STARTED)
 	_update_hint()
+
+func _process(delta: float) -> void:
+	if done or reduce_motion or not is_visible_in_tree(): return
+	_display_clock = fmod(_display_clock + delta, 12.0)
+	queue_redraw()
 
 func advance(delta: float, command: ControlCommand) -> void:
 	if done or delta <= 0: return
@@ -88,7 +101,7 @@ func _stroke(delta: float, command: ControlCommand, rest: bool) -> void:
 	var expected := _stroke_direction()
 	if _releasing:
 		_neutral = _neutral + delta if rest else 0.0
-		var release_time := 0.20 if level_id == "tutorial" and not salvage else 0.26
+		var release_time := 0.38 if not drill else 0.30
 		if _neutral >= release_time:
 			_releasing = false
 			_neutral = 0.0
@@ -98,7 +111,7 @@ func _stroke(delta: float, command: ControlCommand, rest: bool) -> void:
 				_finish()
 		return
 	if not rest and command.direction == expected:
-		var duration := 0.65 if level_id == "tutorial" else 1.29 + _step * 0.2
+		var duration := 1.20 + _step * 0.15
 		if salvage: duration = 0.80
 		if drill: duration = 0.92 + 0.18 * _stage + _step * 0.10
 		_value = minf(1.0, _value + delta * command.intensity / duration)
@@ -108,7 +121,7 @@ func _stroke_direction() -> StringName:
 	return &"CLOSE" if (_stage + (1 if drill else 0)) % 2 == 0 else &"OPEN"
 
 func _stroke_count() -> int:
-	return 4 if drill else (2 if level_id == "tutorial" else 3)
+	return 5 if drill else 4
 
 func _phase_lock(delta: float, command: ControlCommand, rest: bool) -> void:
 	if rest: return
@@ -145,16 +158,20 @@ func _regulate(delta: float, command: ControlCommand, rest: bool) -> void:
 	var force := 0.0
 	if not rest:
 		force = (0.72 if command.direction == &"CLOSE" else -0.75) * command.intensity
-	_value = clampf(_value + delta * (force - 0.12), 0.0, 1.0)
+	var band: Vector2 = PRESSURE_BANDS[_stage]
+	_value = clampf(_value + delta * (force - (0.12 + _stage * 0.025)), 0.0, 1.0)
 	if _value > 0.88:
 		_value = 0.31
 		_missed()
 		sound_requested.emit("air")
-	if _value >= 0.58 and _value <= 0.81:
-		_pressure_hold += delta
-		if _pressure_hold >= 2.5: _finish()
-	else:
+	_pressure_hold = _pressure_hold + delta if _value >= band.x and _value <= band.y else 0.0
+	if _pressure_hold >= PRESSURE_WINDOW:
+		_stage += 1
 		_pressure_hold = 0.0
+		if _stage >= PRESSURE_BANDS.size():
+			_finish()
+		else:
+			sound_requested.emit("click")
 
 func _salvage(delta: float, command: ControlCommand, rest: bool) -> void:
 	if _feedback > 0.0: return
@@ -171,32 +188,34 @@ func _salvage(delta: float, command: ControlCommand, rest: bool) -> void:
 				sound_requested.emit("click")
 		1:
 			if not rest and command.direction == &"CLOSE":
-				_value = minf(1.0, _value + delta * 1.4 * command.intensity)
+				_value = minf(1.0, _value + delta * 0.74 * command.intensity)
 			_neutral = _neutral + delta if rest and _value >= 0.93 else 0.0
-			if _neutral >= 1.0:
+			if _neutral >= 1.2:
 				_stage = 2
+				_neutral = 0.0
 				sound_requested.emit("click")
 		2:
-			if not rest and command.direction == &"OPEN":
+			_neutral = _neutral + delta if not rest and command.direction == &"OPEN" else maxf(0.0, _neutral - delta * 0.5)
+			if _neutral >= 1.35:
 				sound_requested.emit("craft")
 				_finish()
 
 func _balance_rotors(delta: float, command: ControlCommand, rest: bool) -> void:
 	if not rest:
 		if command.direction == &"OPEN":
-			_value = clampf(_value + delta * 0.7 * command.intensity, 0.0, 1.0)
+			_value = fposmod(_value + delta * 0.7 * command.intensity, 1.0)
 		else:
-			_right_phase = clampf(_right_phase - delta * 0.7 * command.intensity, 0.0, 1.0)
+			_right_phase = 1.0 - fposmod(1.0 - _right_phase + delta * 0.7 * command.intensity, 1.0)
 		_neutral = 0.0
 		return
 	var aligned := absf(_value - _center) <= 0.12 and absf(_right_phase - _center) <= 0.12 and absf(_value - _right_phase) <= 0.11
 	_neutral = _neutral + delta if aligned else 0.0
-	if _neutral >= 0.28:
+	if _neutral >= PHASE_WINDOW:
 		_stage += 1
-		if _stage >= 2:
+		if _stage >= ROTOR_CENTERS.size():
 			_finish()
 		else:
-			_center = 0.40
+			_center = ROTOR_CENTERS[_stage]
 			_value = 0.0
 			_right_phase = 1.0
 			_neutral = 0.0
@@ -204,7 +223,7 @@ func _balance_rotors(delta: float, command: ControlCommand, rest: bool) -> void:
 
 func _tune(delta: float, command: ControlCommand, rest: bool) -> void:
 	_signal_clock += delta
-	_center = 0.54 + sin(_signal_clock * 1.04) * 0.16
+	_center = 0.54 + sin(_signal_clock * (1.04 + _stage * 0.17)) * (0.16 + _stage * 0.018)
 	if not rest:
 		var direction := -1.0 if command.direction == &"OPEN" else 1.0
 		_value = clampf(_value + direction * delta * 0.48 * command.intensity, 0.0, 1.0)
@@ -212,25 +231,29 @@ func _tune(delta: float, command: ControlCommand, rest: bool) -> void:
 	_signal_hold = _signal_hold + delta if absf(_value - _center) <= 0.105 else 0.0
 	if previous < 0.45 and _signal_hold >= 0.45: sound_requested.emit("click")
 	elif previous >= 0.65 and _signal_hold == 0.0: sound_requested.emit("warning")
-	if _signal_hold >= 3.0: _finish()
+	if _signal_hold >= SIGNAL_WINDOW:
+		_stage += 1
+		_signal_hold = 0.0
+		if _stage >= SIGNAL_SWEEPS: _finish()
+		else: sound_requested.emit("success")
 
 func _update_hint() -> void:
 	if done: return
 	var next: String
 	if storm_trial:
-		next = "Импульс сбил фазу. Повтори окно." if _feedback > 0 else "A вращает · B фиксирует   |   %d/3" % _stage
+		next = "Импульс сбил фазу. Повтори окно." if _feedback > 0 else "Раскрыть — вращение · Сжать — фиксация   |   %d/3" % _stage
 	elif drill:
-		next = ("Отпусти протез" if _releasing else ("Удерживай B" if _stroke_direction() == &"CLOSE" else "Удерживай A")) + "   |   %d/4" % _stage
+		next = ("Отпусти протез" if _releasing else ("Сожми и удерживай" if _stroke_direction() == &"CLOSE" else "Раскрой и удерживай")) + "   |   %d/%d" % [_stage + 1, _stroke_count()]
 	elif level_id == "repair-1":
-		next = "Сброс давления" if _feedback > 0 else ("Удерживай стрелку в зоне" if _pressure_hold > 0 else "B подаёт давление · A стравливает")
+		next = "Сброс давления" if _feedback > 0 else ("Удерживай стрелку в зоне" if _pressure_hold > 0 else "Сожми для подачи · раскрой для сброса") + "   |   %d/3" % (_stage + 1)
 	elif salvage:
-		next = "Слишком сильно · Повтори" if _feedback > 0 else ["Сожми B до зоны и отпусти", "Подними B · Отпусти на секунду", "Сварка · Коротко нажми A"][_stage]
+		next = "Слишком сильно · Повтори" if _feedback > 0 else ["Сожми до зоны и отпусти", "Сожми для подъёма · затем отпусти", "Раскрой и удерживай для сварки"][_stage]
 	elif level_id == "tutorial":
-		next = "Отпусти протез" if _releasing else ("Сожми и удерживай · B" if _stroke_direction() == &"CLOSE" else "Раскрой и удерживай · A")
+		next = "Отпусти протез" if _releasing else ("Сожми и удерживай" if _stroke_direction() == &"CLOSE" else "Раскрой и удерживай") + "   |   %d/%d" % [_stage + 1, _stroke_count()]
 	elif level_id == "repair-2":
-		next = "Сведи метки A/B · Отпусти для фиксации"
+		next = "Сведи стрелки в зелёные зоны · отпусти   |   %d/%d" % [_stage + 1, ROTOR_CENTERS.size()]
 	else:
-		next = "Веди за полосой · A влево · B вправо"
+		next = "Веди сигнал за полосой   |   %d/%d" % [_stage + 1, SIGNAL_SWEEPS]
 	if next != _hint:
 		_hint = next
 		hint_changed.emit(_hint)
@@ -251,11 +274,16 @@ func _draw() -> void:
 	_unit = minf(size.x / 288.0, size.y / 146.0)
 	if _unit <= 0: return
 	_origin = (size - Vector2(288,146) * _unit) * 0.5
-	if _feedback > 0.0:
+	if _feedback > 0.0 and not reduce_motion:
 		_origin.x += roundf(sin(_feedback * 59.0) * minf(2.0, _feedback * 5.0)) * _unit
 	draw_set_transform(_origin, 0, Vector2.ONE * _unit)
 	Art.prop(self, "plate", Rect2(0, 0, 288, 146), Color("bcb2b7"))
 	var accent := Color("9cf6c9") if _feedback <= 0 else Color("ff9078")
+	for i in range(4):
+		var scan := 0.5 + 0.5 * sin(_display_clock * 6.0 - i * 1.6) if not reduce_motion else 0.5
+		var at := Vector2(19 + i * 7, 112)
+		draw_rect(Rect2(at, Vector2(4, 2)), Color(accent, 0.25 + scan * 0.65))
+		draw_rect(Rect2(Vector2(265 - i * 7, at.y), Vector2(4, 2)), Color(accent, 0.25 + scan * 0.65))
 	if storm_trial:
 		_dial(accent)
 	elif level_id == "repair-2":
@@ -274,10 +302,11 @@ func _draw() -> void:
 func _pressure_meter(accent: Color) -> void:
 	var center := Vector2(144, 69)
 	Art.prop(self, "dial", Rect2(center - Vector2(54, 54), Vector2(108, 108)))
-	draw_arc(center, 39, -PI * 1.26 + 4.8 * 0.58, -PI * 1.26 + 4.8 * 0.81, 18, Color("9cf6c9"), 4)
+	var band: Vector2 = PRESSURE_BANDS[mini(_stage, PRESSURE_BANDS.size() - 1)]
+	draw_arc(center, 39, -PI * 1.26 + 4.8 * band.x, -PI * 1.26 + 4.8 * band.y, 18, Color("9cf6c9"), 4)
 	draw_arc(center, 39, -PI * 1.26 + 4.8 * 0.88, -PI * 1.26 + 4.8, 12, Color("f47d63"), 4)
 	_spin("needle", center, Vector2(14, 47), -PI * 0.76 + _value * 4.8 + sin(_value * 43.0) * 0.018, Vector2(0.5, 0.8))
-	_draw_charge(_pressure_hold / 2.5, accent)
+	_draw_charge((_stage + _pressure_hold / PRESSURE_WINDOW) / PRESSURE_BANDS.size(), accent)
 	if _feedback > 0.0:
 		Art.prop(self, "steam", Rect2(170, 42 - 18 * (1.0 - _feedback), 76, 64), Color(0.9, 0.94, 1.0, _feedback))
 
@@ -290,7 +319,7 @@ func _rotors(accent: Color) -> void:
 		_spin("needle", point, Vector2(13, 39), TAU * phase, Vector2(0.5, 0.8))
 	if _neutral > 0.0:
 		Art.prop(self, "spark", Rect2(127, 45, 34, 34), Color(accent, clampf(_neutral * 4.0, 0.0, 1.0)))
-	_steps(2, accent)
+	_draw_charge((_stage + _neutral / PHASE_WINDOW) / ROTOR_CENTERS.size(), accent)
 
 func _draw_charge(amount: float, accent: Color) -> void:
 	draw_rect(Rect2(91, 125, 106, 7), Color("26394b"))
@@ -317,11 +346,11 @@ func _wave(accent: Color) -> void:
 	var line := PackedVector2Array()
 	for i in range(91):
 		var fraction := float(i) / 90
-		var wave := sin((fraction - _value) * 44) * maxf(0, 1.0 - absf(fraction - _value) * 3.4)
+		var wave := sin((fraction - _value) * 44 - _display_clock * 8.0) * maxf(0, 1.0 - absf(fraction - _value) * 3.4)
 		line.append(Vector2(glass.position.x + fraction * glass.size.x,
 			glass.get_center().y + roundf(wave * 21)))
 	draw_polyline(line, Color("b6f5f0"), 2)
-	_draw_charge(_signal_hold / 3.0, accent)
+	_draw_charge((_stage + _signal_hold / SIGNAL_WINDOW) / SIGNAL_SWEEPS, accent)
 
 func _valve(accent: Color) -> void:
 	var center := Vector2(144, 68)
@@ -350,7 +379,10 @@ func _gripper(accent: Color) -> void:
 	elif _stage == 1:
 		_draw_charge(_neutral, accent)
 	elif _stage == 2:
-		Art.prop(self, "spark", Rect2(138, 68, 30, 28), accent)
+		_draw_charge(_neutral / 1.35, accent)
+		if _neutral > 0.0:
+			var flicker := 0.7 + 0.3 * sin(_display_clock * 41.0) if not reduce_motion else 0.75
+			Art.prop(self, "spark", Rect2(138, 68, 30, 28), Color(accent, flicker))
 
 func _draw_drill(accent: Color) -> void:
 	draw_texture_rect_region(Art.LOOT,Rect2(141,54,90,62),Art.MATERIALS.ore)
@@ -359,7 +391,7 @@ func _draw_drill(accent: Color) -> void:
 	_spin("gear",Vector2(131+_value*19,72),Vector2(51,51),_stage*1.4+_value*5.0)
 	if _value > 0.15:
 		Art.prop(self,"spark",Rect2(147+_value*7,59,23,25),Color(1,0.82,0.68,_value))
-	_steps(4,accent)
+	_steps(_stroke_count(), accent)
 
 func _spin(id: String, center: Vector2, dimensions: Vector2, angle: float, pivot := Vector2(0.5,0.5)) -> void:
 	draw_set_transform(_origin + center * _unit, angle, Vector2.ONE * _unit)

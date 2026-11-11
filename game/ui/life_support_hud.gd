@@ -10,6 +10,7 @@ const PIXELS := [
 	["....#", ".#.##", ".###.", "#.##.", "###..", "##...", "#...."]
 ]
 var station: State
+var large_text := false
 var _display := PackedFloat32Array([0, 0, 0])
 var _first_frame := true
 
@@ -33,7 +34,7 @@ func _draw() -> void:
 	if station == null or size.x <= 0: return
 	var font := get_theme_default_font()
 	var compact := size.x < 340.0
-	var font_size := 12 if compact else 14
+	var font_size := 12 if compact else (16 if large_text else 14)
 	var gap := 5.0
 	var width := floorf((size.x - gap * 2.0) / 3.0)
 	for i in range(KEYS.size()):

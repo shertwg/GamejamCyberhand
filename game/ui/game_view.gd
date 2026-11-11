@@ -12,12 +12,16 @@ const StationState = preload("res://game/station/station_state.gd")
 const Campaign = preload("res://game/ui/campaign_view.gd")
 const RepairTask = preload("res://game/gameplay/repair_task.gd")
 const QuietSignal = preload("res://game/side_expedition/quiet_signal.tscn")
+const PlayerSettings = preload("res://game/ui/player_settings.gd")
+const PlayerMenu = preload("res://game/ui/player_menu.gd")
 static var legacy_demo := false
 var coordinator: SessionCoordinator
 var station: StationState
 var campaign: Campaign
 var quiet_signal: Control
 var _quiet_notice := ""
+var settings: PlayerSettings
+var player_menu: PlayerMenu
 
 @onready var root: Control = $Root
 @onready var hud_overlay: HudOverlay = $Root/Margin/VBox/HudOverlay
@@ -69,6 +73,7 @@ func bind_coordinator(p_coordinator: SessionCoordinator) -> void:
 	_apply_initial_state()
 	if not legacy_demo:
 		_open_campaign()
+		_open_settings_layer(fixture)
 
 
 func _open_campaign() -> void:
@@ -81,20 +86,109 @@ func _open_campaign() -> void:
 	campaign.job_requested.connect(func(id: String):
 		coordinator.select_level(id)
 		if coordinator._level_id == id:
-			coordinator.start_current_mission()
+			coordinator.start_current_mission(true)
 	)
 	campaign.resume_requested.connect(_on_resume_pressed)
 	campaign.exit_requested.connect(_leave_repair)
 	campaign.hand_requested.connect(_on_hand_toggle_pressed)
 	campaign.quiet_signal_requested.connect(_open_quiet_signal)
+	campaign.menu_requested.connect(_open_player_menu)
 	emulator_pad.reparent(root, false)
 	emulator_pad.compact = true
+	emulator_pad.lever_mode = true
 	emulator_pad.custom_minimum_size.y = 58
 	emulator_pad.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	emulator_pad.offset_top = -68
 	emulator_pad.offset_bottom = -10
 	emulator_pad.offset_left = 14
 	emulator_pad.offset_right = -14
+
+
+func _open_settings_layer(fixture: bool) -> void:
+	settings = PlayerSettings.new("" if fixture else PlayerSettings.DEFAULT_PATH)
+	player_menu = PlayerMenu.new()
+	root.add_child(player_menu)
+	player_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	player_menu.closed.connect(_close_player_menu)
+	player_menu.save_requested.connect(_save_game.bind(false))
+	player_menu.quit_requested.connect(_save_game.bind(true))
+	player_menu.replay_requested.connect(func():
+		_close_player_menu()
+		campaign._begin_opening())
+	player_menu.hand_requested.connect(coordinator.set_hand_side)
+	player_menu.setting_changed.connect(_on_setting_changed)
+	player_menu.vibration_preview.connect(func(): campaign.sound.vibrate(55))
+	_apply_player_settings()
+
+
+func _open_player_menu() -> void:
+	if player_menu == null or player_menu.visible or not coordinator._foreground: return
+	campaign.menu_open = true
+	campaign.foreground = coordinator._foreground
+	emulator_pad.input_enabled = false
+	emulator_pad.clear()
+	if is_instance_valid(quiet_signal):
+		quiet_signal.suspend_input()
+	elif coordinator._playing:
+		coordinator.suspend_current_input()
+	root.move_child(player_menu, -1)
+	player_menu.open(settings.values, coordinator.is_hand_left(), campaign.mode == "room")
+
+
+func _close_player_menu() -> void:
+	if player_menu == null or not player_menu.visible: return
+	player_menu.hide()
+	emulator_pad.clear()
+	emulator_pad.input_enabled = true
+	campaign.menu_open = false
+	campaign.foreground = coordinator._foreground
+
+
+func _input(event: InputEvent) -> void:
+	if player_menu == null or not event is InputEventKey or not event.pressed or event.echo: return
+	if event.keycode != KEY_ESCAPE: return
+	if player_menu.visible:
+		_close_player_menu()
+	else:
+		_open_player_menu()
+	get_viewport().set_input_as_handled()
+
+
+func _save_game(quit_after: bool) -> void:
+	var old_room := int(station.data.saved_room)
+	station.data.saved_room = campaign.room
+	var ok := station.save()
+	if not ok: station.data.saved_room = old_room
+	if is_instance_valid(quiet_signal):
+		ok = quiet_signal.save_progress() and ok
+	ok = settings.save() and ok
+	if not ok:
+		player_menu.set_status("Не удалось сохранить. Попробуй ещё раз.")
+		return
+	player_menu.set_status("Сохранено · ремонт начнётся заново" if campaign.mode == "repair" else "Прогресс сохранён")
+	if quit_after: get_tree().quit()
+
+
+func _on_setting_changed(key: String, value: Variant) -> void:
+	settings.set_value(key, value)
+	_apply_player_settings()
+	if not settings.save(): player_menu.set_status("Не удалось записать настройки")
+
+
+func _apply_player_settings() -> void:
+	var options := settings.values
+	if options.reduce_motion and player_menu.visible: player_menu.snap_open()
+	campaign.sound.apply_settings(options)
+	campaign.apply_accessibility(options.large_text, options.reduce_motion)
+	emulator_pad.one_hand = options.one_hand
+	var pad_height := 100.0 if options.large_pad else 58.0
+	emulator_pad.offset_top = -10.0 - pad_height
+	emulator_pad.custom_minimum_size.y = pad_height
+	var reserved := pad_height + 14.0
+	if campaign.mode == "repair": campaign.offset_bottom = -reserved
+	if is_instance_valid(quiet_signal):
+		quiet_signal.offset_bottom = -reserved
+		quiet_signal.apply_accessibility(options.large_text, options.reduce_motion)
 
 
 func _open_quiet_signal() -> void:
@@ -113,9 +207,10 @@ func _open_quiet_signal() -> void:
 	quiet_signal.input_resume_requested.connect(coordinator.resume_expedition_input)
 	quiet_signal.expedition_completed.connect(_receive_quiet_reward)
 	quiet_signal.exit_requested.connect(_close_quiet_signal)
+	quiet_signal.settings_requested.connect(_open_player_menu)
 	root.add_child(quiet_signal)
 	quiet_signal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	quiet_signal.offset_bottom = -72
+	_apply_player_settings()
 	root.move_child(emulator_pad, -1)
 	emulator_pad.show()
 	quiet_signal.flush_pending_rewards()
@@ -123,7 +218,7 @@ func _open_quiet_signal() -> void:
 
 func _pause_quiet_input() -> void:
 	emulator_pad.clear()
-	coordinator.suspend_expedition_input()
+	coordinator.suspend_current_input()
 
 
 func _receive_quiet_reward(result: Dictionary) -> void:
@@ -133,7 +228,7 @@ func _receive_quiet_reward(result: Dictionary) -> void:
 		_quiet_notice = station.notice
 		if first_receipt and result.get("battery_secured") == true:
 			var weather := campaign.world.next_station_event()
-			if not weather.is_empty(): _quiet_notice += "\n" + weather
+			if not weather.is_empty(): campaign.log_dialogue(weather)
 	else:
 		_quiet_notice = "Склад недоступен. Открой вылазку снова, чтобы повторить доставку."
 		quiet_signal.report_storage_error(_quiet_notice)
@@ -148,7 +243,7 @@ func _close_quiet_signal(_result: Dictionary) -> void:
 	previous.hide()
 	previous.queue_free()
 	campaign.show()
-	campaign.sound.room(campaign.room, station.data.signal)
+	campaign.sound.room(campaign.art.room, station.data.signal)
 	campaign.sound.pause_audio(not coordinator._foreground)
 	campaign.show_room(_quiet_notice)
 
@@ -234,6 +329,7 @@ func _on_hand_toggle_pressed() -> void:
 
 
 func _on_resume_pressed() -> void:
+	if player_menu != null and player_menu.visible: return
 	if coordinator != null:
 		coordinator.request_resume()
 
@@ -248,8 +344,9 @@ func _on_next_pressed() -> void:
 
 
 func _process(delta: float) -> void:
-	if station == null or not coordinator._foreground:
+	if station == null or not coordinator._foreground or (player_menu != null and player_menu.visible):
 		return
+	if campaign != null and campaign.journal_open: return
 	if campaign != null and campaign.mode in ["room", "repair"]:
 		station.advance_supplies(delta, campaign.room >= 7)
 	# Greenhouse advances at base and during active repair, never during an input barrier.
@@ -295,13 +392,13 @@ func _on_mission_started(level_id: String, config) -> void:
 		campaign.move_child(device, 1)
 		coordinator.repair_task = device
 		campaign.device = device
-		campaign.offset_bottom = -72
 		var title: String = RepairTask.TITLES[level_id]
 		if device.storm_trial: title = "Ретранслятор · грозовой фронт"
 		elif device.drill: title = "Бур · калибровка зажима"
 		elif device.salvage: title = "Снять ячейку"
 		elif campaign.room == 3 and level_id == "repair-1": title = "Продувка биосада"
 		campaign.show_repair(title)
+		_apply_player_settings()
 		device.completed.connect(coordinator._on_level_completed)
 		device.event_emitted.connect(coordinator._on_game_event)
 		device.hint_changed.connect(campaign.repair_hint)
@@ -346,7 +443,8 @@ func _on_mission_completed(summary, adaptation: Dictionary) -> void:
 		campaign.world.record(summary,task.mistakes,task.releases,relay)
 		if campaign.room == 3 and summary.level_id == "repair-1":
 			campaign.world.finish_dust_cycle()
-			_leave_repair("Маяк: фильтр чист. Биосад снова дышит.")
+			campaign.log_dialogue("purge")
+			_leave_repair("Фильтр биосада очищен.")
 			return
 		if task.drill:
 			station.cancel_job()
@@ -357,22 +455,22 @@ func _on_mission_completed(summary, adaptation: Dictionary) -> void:
 		if relay:
 			station.cancel_job()
 			_leave_repair("Синхронизация стабильна. Заряд +1." if repeat_relay else
-				"Маяк: маршрут через бурю найден. В радиорубку! Заряд +3.")
-			if not repeat_relay: campaign.sound.say("relay")
+				"Ретранслятор синхронизирован. Заряд +3.")
+			if not repeat_relay: campaign.log_dialogue("relay")
 			return
 		var first_air: bool = not station.data.air_ready and summary.level_id == "tutorial"
 		var first_water: bool = not station.data.pump and summary.level_id == "repair-1"
 		var first_signal: bool = not station.data.signal and summary.level_id == "repair-3"
 		var reward := station.complete_job(summary.level_id)
 		var story := ""
-		if first_air: story = "Маяк: давление держится. "
-		elif first_water: story = "Маяк: охлаждение вернулось. "
-		elif first_signal: story = "Орбита: сигнал принят. Открываем коридор домой. "
+		if first_air: story = "Давление стабильно. "
+		elif first_water: story = "Охлаждение восстановлено. "
+		elif first_signal: story = "Орбитальный коридор открыт. "
 		elif task.mistakes == 0 and summary.level_id in ["repair-1", "repair-2"]:
-			story = "Маяк: чистый контур. "
+			story = "Чистый контур. "
 		_leave_repair(story + reward)
-		if first_air: campaign.sound.say("air")
-		elif first_water: campaign.sound.say("water")
+		if first_air: campaign.log_dialogue("air")
+		elif first_water: campaign.log_dialogue("water")
 		elif first_signal: campaign.chapter_scene(2)
 		return
 	$Root/Margin.visible = false

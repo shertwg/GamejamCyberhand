@@ -21,21 +21,26 @@ const DEPOSITS := {
 	9: [[Vector2(299,184),"energy",2,"Ячейка"]]
 }
 const CHAPTERS := [
-	["I   Разгерметизация","Закрой заслонку в рубке."],
-	["II   Первый контур","Верни воду и собери фильтр в шлюзе."],
-	["III   За обшивкой","Добудь руду в ущелье, затем кристаллы в пещере."],
-	["IV   Голос в грозе","Собери сплав и экран, запитай реактор и почини ретранслятор."],
-	["V   Окно домой","Настрой антенну в радиорубке, собери запасы и вернись в рубку."],
-	["Эпилог   Восход","Керна осталась позади. Отсеки и вылазки доступны."]
+	["I · Авария","Перекрой утечку воздуха в рубке."],
+	["II · Первый контур","Верни воду и вырасти первый урожай."],
+	["III · Снова под током","Собери реактор и подключи антенну."],
+	["IV · Голос в эфире","Поймай ответ орбитального патруля."],
+	["V · Окно домой","Заполни трюм и запусти корабль."],
+	["Эпилог · Восход","Керна осталась позади."]
 ]
+
+static func physical_room(system: int) -> int:
+	return 0 if system < 6 and system != 3 else system
+
 var station
 var data: Dictionary
 var cooldowns: Dictionary = {}
+var available_repairs: Array = ["tutorial", "repair-1"]
 
 static func defaults() -> Dictionary:
 	return {"ore":0,"silica":0,"alloy":0,"filter":false,"shield":false,"liner":false,"stabilizer":false,"extractor":false,
 		"relay":false,"discovered":[0],"collected":0,"repairs":0,"last":{},
-		"story_flags":[],"best_relay":-1,"condenser":false,"capacitor":false,
+		"story_flags":[],"dialogue":[],"best_relay":-1,"condenser":false,"capacitor":false,
 		"weather_shift":0,"weather_event":""}
 
 func _init(model) -> void:
@@ -56,6 +61,10 @@ func _init(model) -> void:
 					var max_id := 9 if key == "discovered" else 5
 					if (id is int or id is float) and is_finite(float(id)) and id >= 0 and id <= max_id and int(id) not in data[key]:
 						data[key].append(int(id))
+		if saved.get("dialogue") is Array:
+			for id in saved.dialogue:
+				if id is String and id.length() <= 24 and id not in data.dialogue and data.dialogue.size() < 64:
+					data.dialogue.append(id)
 		if saved.get("last") is Dictionary:
 			data.last = saved.last.duplicate()
 		if saved.get("weather_event") in ["dust", "vent"]:
@@ -68,10 +77,7 @@ func next_station_event() -> String:
 	data.weather_shift = (int(data.weather_shift) + 1) % 3
 	if event != "tracks": data.weather_event = event
 	station.save()
-	match event:
-		"dust": return "Маяк: пыль забила фильтр биосада."
-		"vent": return "Маяк: выброс обнажил кристаллы в пещере."
-		_: return "Маяк: у шлюза следы. У них больше ног, чем я рассчитывал."
+	return event
 
 func finish_dust_cycle() -> void:
 	if data.weather_event != "dust": return
@@ -81,9 +87,9 @@ func finish_dust_cycle() -> void:
 func chapter() -> int:
 	if station.data.launched: return 5
 	if not station.data.air_ready: return 0
-	if not data.filter: return 1
-	if not data.relay:
-		return 2 if not data.shield else 3
+	if station.data.harvests == 0: return 1
+	if not station.data.beacon: return 2
+	if not station.data.signal: return 3
 	return 4
 
 func locked(room: int) -> String:
@@ -164,6 +170,7 @@ func price(id: String) -> String:
 
 func next_objective() -> Array:
 	var ship: Dictionary = station.data
+	if ship.launched: return [-1, "Свободный полёт"]
 	if not ship.air_ready: return [0, "Закрыть заслонку"]
 	if not ship.pump: return [1, "Вернуть воду"]
 	if not ship.garden:
@@ -178,18 +185,9 @@ func next_objective() -> Array:
 		if ship.parts < 5 or ship.coils == 0: return [2, "Подготовить детали и катушку"]
 		if ship.energy < 2: return [4, "Набрать заряд"]
 		return [5, "Подключить антенну"]
-	if not data.filter:
-		if ship.parts < 2: return [2, "Добыть детали для фильтра"]
-		if ship.energy < 1: return [4, "Набрать заряд для фильтра"]
-		return [6, "Собрать фильтр"]
-	if not data.shield:
-		if data.alloy == 0 and data.ore < 3: return [7, "Добыть руду"]
-		if data.silica < 2: return [8, "Добыть кристаллы"]
-		if data.alloy == 0 and ship.energy < 1: return [4, "Набрать заряд для плавки"]
-		return [2, "Собрать экран"]
-	if not data.relay: return [9, "Починить ретранслятор"]
-	if not ship.signal: return [5, "Настроить антенну"]
-	if ship.launched: return [-1, "Свободный полёт"]
+	if not ship.signal:
+		if "repair-3" not in available_repairs: return [4, "Синхронизировать реактор"]
+		return [5, "Настроить антенну"]
 	if ship.parts < 8: return [2, "Дособрать детали для взлёта"]
 	if ship.food < 4: return _food_objective()
 	if ship.energy < 3: return [4, "Запасти заряд для взлёта"]
@@ -197,7 +195,7 @@ func next_objective() -> Array:
 
 func _food_objective() -> Array:
 	for elapsed in station.data.beds:
-		if elapsed >= 0.0: return [3, "Собрать урожай"]
+		if elapsed >= 0.0: return [3, "Дождаться урожая" if station.ripe_bed() < 0 else "Собрать урожай"]
 	if station.data.water < 1: return [1, "Набрать воду для посева"]
 	if station.data.energy < 1: return [4 if station.data.generator else 2, "Набрать заряд для посева"]
 	return [3, "Посадить семена"]

@@ -5,6 +5,7 @@ const State = preload("res://game/station/station_state.gd")
 const Navigation = preload("res://game/gameplay/deck_navigation.gd")
 const Opening = preload("res://game/ui/opening_timeline.gd")
 const GardenPlots = preload("res://game/ui/garden_plots.gd")
+const PlayerSettings = preload("res://game/ui/player_settings.gd")
 const ExpeditionPilot = preload("res://game/side_expedition/tests/demo_pilot.gd")
 var host
 var scene
@@ -43,6 +44,14 @@ func _run() -> void:
 	check(absf(scene.sound.OPENING_MIX.get_length() - Opening.DURATION) < 0.08,
 		"opening mix and cut timeline share their duration")
 	scene._process(1.3)
+	scene._journal_button.pressed.emit()
+	var journal_clock: float = scene._intro_clock
+	scene._process(1.0)
+	check(scene.journal_open and scene._intro_clock == journal_clock and (DisplayServer.get_name() == "headless" or scene.sound._opening.stream_paused),
+		"journal pauses the opening and its effects")
+	check("Керна" in scene._journal.body.text and "Тяги нет" not in scene._journal.body.text and scene._hint.text.is_empty(),
+		"opening dialogue appears only in the journal and never reveals a future line")
+	scene._journal.hide()
 	await capture("orbit")
 	var stopped: float = scene._intro_clock
 	scene.foreground = false
@@ -59,6 +68,11 @@ func _run() -> void:
 	scene._process(Opening.DURATION + 0.02 - scene._intro_clock)
 	check(scene.mode == "room" and scene.room == 0 and model.data.intro_seen, "crash cuts end inside the cabin")
 	check(not scene.sound._opening.playing, "opening audio stops in playable cabin")
+	check(State.new(model.path).data.expedition.dialogue.size() == Opening.DIALOGUE_CUES.size(),
+		"all opening entries persist after the crash")
+	scene._journal_button.pressed.emit()
+	await capture("ship-journal")
+	scene._journal.hide()
 	check(scene._supplies.visible, "supply bars visible in playable cabin")
 	host._game_view._process(60.0)
 	check(is_equal_approx(model.supply("water"), 64.0), "tutorial grace period preserves reserves")
@@ -88,14 +102,30 @@ func _run() -> void:
 	settle()
 	check(scene.nav.feet.distance_to(before) > 30.0 and scene.nav.on_floor(scene.nav.feet), "viewport click moves the hero along the floor")
 	use("job")
-	check(scene.mode == "repair" and scene._resume.visible, "first repair requires explicit resume")
+	check(scene.mode == "repair" and not scene._resume.visible and host._current.state == &"REST", "a fresh repair starts neutral without an extra resume button")
 	await capture("airlock")
-	host.request_resume()
+	var lever = host._game_view.emulator_pad
+	var lever_at: Rect2 = lever._lever_bounds()
+	var touch := InputEventScreenTouch.new()
+	touch.index = 0
+	touch.position = lever.get_global_transform_with_canvas() * Vector2(lever_at.position.x + 5, lever_at.get_center().y)
+	touch.pressed = true
+	root.push_input(touch)
+	check(lever.lever_mode and host._current.direction == &"OPEN", "one touch on the lever maps to open")
+	var drag := InputEventScreenDrag.new()
+	drag.index = touch.index
+	drag.position = lever.get_global_transform_with_canvas() * Vector2(lever_at.end.x - 5, lever_at.get_center().y)
+	root.push_input(drag)
+	check(host._current.direction == &"CLOSE", "dragging the same lever reverses direction")
+	touch.pressed = false
+	touch.position = drag.position
+	root.push_input(touch)
+	check(host._current.state == &"REST", "releasing the lever returns to neutral")
 	now = host._now_ms()
 	sample(1,1,12)
 	check(host.repair_task.active_seconds == 0.0, "BOTH cannot move or score the device")
 	sample(0,0,5)
-	turn_valve(2)
+	turn_valve()
 	check(model.data.air_ready and scene._right.visible, "airlock repair opens the hall")
 	check(scene.world.next_objective()[0] == 1 and scene._right.text.ends_with("◆"),
 		"route highlights the next pump stop")
@@ -111,12 +141,40 @@ func _run() -> void:
 	host.set_foreground(true)
 	go(1)
 	var before_replay_water: int = model.data.water
-	scene._bag.pressed.emit()
-	scene._replay.pressed.emit()
-	check(scene.mode == "intro", "saved game can replay the opening from inventory")
+	var view = host._game_view
+	var menu = view.player_menu
+	scene._menu.pressed.emit()
+	check(menu.visible and scene.menu_open and not view.emulator_pad.input_enabled, "game menu intercepts controls")
+	host._game_view._process(60.0)
+	check(is_equal_approx(model.supply("water"), 59.0), "game menu pauses life support")
+	menu.save_requested.emit()
+	check(State.new(model.path).data.saved_room == 1 and "сохранён" in menu._status.text, "manual save writes the current room")
+	view.settings.path = fixture + "_settings.cfg"
+	menu.setting_changed.emit("music", 0.0)
+	menu.setting_changed.emit("large_pad", true)
+	menu.setting_changed.emit("one_hand", true)
+	menu.setting_changed.emit("large_text", true)
+	menu.setting_changed.emit("reduce_motion", true)
+	menu._show_page(2)
+	menu._body.get_child(0).pressed.emit()
+	var stored := PlayerSettings.new(view.settings.path)
+	check(stored.values.music == 0.0 and stored.values.large_pad and stored.values.reduce_motion,
+		"preferences persist independently of game state")
+	check(AudioServer.is_bus_mute(AudioServer.get_bus_index("KernaMusic"))
+		and not AudioServer.is_bus_mute(AudioServer.get_bus_index("KernaEffects"))
+		and scene.sound._opening.bus == "KernaEffects",
+		"music and effects have independent mixer channels and the intro uses effects")
+	check(view.emulator_pad.mirrored and view.emulator_pad.one_hand
+		and scene._hint.get_theme_font_size("font_size") == 22, "accessibility changes affect actual controls")
+	await capture("settings-controls")
+	menu._show_page(1)
+	await capture("settings-audio")
+	menu.replay_requested.emit()
+	check(scene.mode == "intro", "saved game can replay the opening from the game menu")
 	host._game_view._process(60.0)
 	check(not scene._supplies.visible and is_equal_approx(model.supply("water"), 59.0), "replaying intro pauses supplies")
 	scene._action.pressed.emit()
+	check(scene.world.data.dialogue.count("orbit") == 1, "replaying or skipping opening does not duplicate the transcript")
 	check(scene.mode == "room" and scene.room == 1 and model.data.water == before_replay_water,
 		"skipping replay returns to the same room with progress")
 	await capture("coolant")
@@ -125,11 +183,16 @@ func _run() -> void:
 	check(is_equal_approx(model.supply("water"), 58.5)
 		and host.repair_task.active_seconds == 0.0, "repair keeps supply time separate from gesture time")
 	await capture("valve")
+	scene._menu.pressed.emit()
+	check(host._current.pause_required and menu.visible, "menu suspends repair input")
+	menu.closed.emit()
+	check(view.emulator_pad.input_enabled and host._current.pause_required, "closing menu preserves explicit resume gate")
+	host._emit_frame(host._now_ms())
 	activate_input()
 	sample(0,1,35)
 	check(host.repair_task.mistakes == 1 and host.repair_task._pressure_hold == 0.0
 		and model.data.water == 0, "pressure overshoot vents without docking cargo")
-	turn_valve(3)
+	turn_valve()
 	check(model.data.water == 3 and model.data.pump, "pump adds water")
 	check(is_equal_approx(model.supply("water"), 82.5), "pump also refills the ship water meter")
 	go(3)
@@ -156,6 +219,8 @@ func _run() -> void:
 	activate_input()
 	sample(0,1,1)
 	check(host.repair_task._stage == 0, "early brake cannot lock phase")
+	sample(1,0,30)
+	check(host.repair_task._value < 0.20 and host.repair_task._stage == 0, "overshooting the rotor wraps instead of blocking the repair")
 	phase_lock()
 	check(model.data.energy >= 4 and "repair-3" in scene.unlocked, "reactor reward unlocks radio")
 	go(2)
@@ -166,7 +231,41 @@ func _run() -> void:
 	go(5)
 	use("beacon")
 	check(model.data.beacon and model.data.coils == 0, "antenna consumes the coil")
-	check(scene._verb != "job", "radio waits for the off-ship relay")
+	check(scene._verb == "job" and scene.world.next_objective()[0] == 5, "ship radio works without the optional relay")
+	go(5)
+	use("job")
+	await capture("radio")
+	activate_input()
+	for i in range(480):
+		if not host._playing: break
+		var error: float = host.repair_task._value - host.repair_task._center
+		sample(1 if error > 0.045 else 0, 1 if error < -0.045 else 0, 1)
+	if scene.mode == "chapter": scene._finish_cut()
+	check(model.data.signal and scene.mode == "room" and not scene.world.data.relay, "ship radio locks onto orbit before any expedition")
+
+	go(1)
+	use("job")
+	activate_input()
+	turn_valve()
+	go(3)
+	use("plant")
+	use("plant")
+	model.advance(18,true)
+	use("harvest")
+	use("harvest")
+	go(2)
+	for i in range(3): await salvage()
+	go(0)
+	use("launch")
+	check(scene.mode == "takeoff" and model.data.launched, "completed supply chain triggers takeoff")
+	await capture("takeoff")
+	scene._finish_cut()
+	if scene.mode == "chapter": scene._finish_cut()
+	var saved := State.new(model.path)
+	check(saved.data.launched and saved.data.air_ready and saved.data.intro_seen
+		and not saved.data.expedition.filter and not saved.data.expedition.relay,
+		"main story completes and reloads without any expedition")
+	check(is_equal_approx(saved.supply("water"), model.supply("water")), "life support loads from the normal save")
 	go(6)
 	collect(0)
 	use("filter")
@@ -192,15 +291,13 @@ func _run() -> void:
 	use("job")
 	await capture("drill")
 	activate_input()
-	for i in range(4):
-		sample(1 if i % 2 == 0 else 0,0 if i % 2 == 0 else 1,37)
-		sample(0,0,6)
-	check(scene.world.data.extractor and not host._playing, "four distinct drill holds unlock extraction")
+	turn_valve()
+	check(scene.world.data.extractor and not host._playing, "five drill strokes unlock extraction")
 	collect(0)
 	await capture("cave")
 	scene._map_button.pressed.emit()
 	check(scene._map.visible and not scene._map._nodes[2].disabled and scene._map._nodes[9].disabled, "map distinguishes visited and locked rooms")
-	check(scene._map._nodes[2].text.begins_with("◆"), "map guides a stocked expedition back to the workshop")
+	check(scene._map._nodes[2].get_parent() != scene._map._nodes[8].get_parent(), "plan separates ship systems from optional expeditions")
 	await capture("map")
 	scene._map._nodes[2].pressed.emit()
 	check(scene.room == 2 and not scene._map.visible, "map backtracks to the discovered workshop")
@@ -220,38 +317,8 @@ func _run() -> void:
 		sample(0,0,2)
 		sample(0,1,1)
 		sample(0,0,2)
-	check(scene.world.data.relay and not model.data.signal and not host._playing, "three phase locks open ship radio without faking the final signal")
-	go(5)
-	use("job")
-	await capture("radio")
-	activate_input()
-	for i in range(160):
-		if not host._playing: break
-		var error: float = host.repair_task._value - host.repair_task._center
-		sample(1 if error > 0.045 else 0, 1 if error < -0.045 else 0, 1)
-	if scene.mode == "chapter": scene._finish_cut()
-	check(model.data.signal and scene.mode == "room", "radio rewards sustained tracking of a moving target")
-	go(1)
-	use("job")
-	activate_input()
-	turn_valve(3)
-	go(3)
-	use("plant")
-	use("plant")
-	model.advance(18,true)
-	use("harvest")
-	use("harvest")
-	go(2)
-	for i in range(3): await salvage()
-	go(0)
-	use("launch")
-	check(scene.mode == "takeoff" and model.data.launched, "completed supply chain triggers takeoff")
-	await capture("takeoff")
-	scene._finish_cut()
-	if scene.mode == "chapter": scene._finish_cut()
-	var saved := State.new(model.path)
-	check(saved.data.launched and saved.data.air_ready and saved.data.intro_seen and saved.data.expedition.relay, "progress reloads")
-	check(is_equal_approx(saved.supply("water"), model.supply("water")), "life support loads from the normal save")
+	check(scene.world.data.relay and model.data.signal and not host._playing, "three phase locks complete the optional relay independently")
+
 	var stock_before := int(model.data.energy)
 	host._game_view._process(2400.0)
 	check(model.supply("energy") == 0.0 and model.supply("food") == 0.0 and model.economy_mode(), "depleted supplies clamp and trigger economy mode")
@@ -263,7 +330,7 @@ func _run() -> void:
 	go(1)
 	use("job")
 	activate_input()
-	turn_valve(3)
+	turn_valve()
 	check(model.supply("water") == 24.0, "pump can recover water from empty without stock")
 	go(8)
 	collect(1)
@@ -272,6 +339,7 @@ func _run() -> void:
 	check(scene._cell.visible and not scene._cell.disabled, "battery becomes available after field collection")
 	scene._cell.pressed.emit()
 	check(model.supply("energy") == 27.0, "crafted battery restores power")
+	scene._bag_panel._slots.energy.pressed.emit()
 	var charge_before := int(model.data.energy)
 	check(not scene._refill_buttons.energy.disabled and scene._refill_buttons.food.disabled,
 		"inventory offers stored charge but cannot transfer absent food")
@@ -315,6 +383,20 @@ func _run() -> void:
 	root.content_scale_size = Vector2i(648,1152)
 	root.size = Vector2i(648,1152)
 	await capture("portrait")
+	scene._bag.pressed.emit()
+	scene._bag_panel._slots.food.pressed.emit()
+	await process_frame
+	check(Rect2(Vector2.ZERO, scene.size).encloses(scene._bag_panel.get_rect())
+		and scene._bag_panel.selected == "food" and scene._refill_buttons.food.visible,
+		"portrait cargo exposes the selected item and its transfer")
+	await capture("cargo-portrait")
+	scene._bag_panel.dismissed.emit()
+	scene._menu.pressed.emit()
+	menu._show_page(2)
+	await process_frame
+	check(Rect2(Vector2.ZERO, menu.size).encloses(menu._panel.get_rect()), "settings panel fits a portrait viewport")
+	await capture("settings-portrait")
+	menu.closed.emit()
 	if "--live-supplies" in OS.get_cmdline_user_args():
 		await check_live_supplies()
 		host.set_foreground(true)
@@ -358,7 +440,7 @@ func _run() -> void:
 	var installed: Dictionary = State.new(model.path).data.expedition
 	check(installed.capacitor and installed.condenser, "both upgrades survive relaunch")
 	await check_quiet_signal()
-	for suffix in ["_profile.json", "_station.json", "_station.json.tmp", "_station.json.quiet_signal.json", "_station.json.quiet_signal.json.tmp"]:
+	for suffix in ["_profile.json", "_station.json", "_station.json.tmp", "_station.json.quiet_signal.json", "_station.json.quiet_signal.json.tmp", "_settings.cfg"]:
 		if FileAccess.file_exists(fixture + suffix): DirAccess.remove_absolute(fixture + suffix)
 	main.queue_free()
 	await process_frame
@@ -376,8 +458,12 @@ func check_quiet_signal() -> void:
 	if not is_instance_valid(expedition): return
 	expedition.set_process(false)
 	expedition._action.pressed.emit()
-	expedition.suspend_input()
-	check(host._current.state == &"SUSPENDED" and expedition._current.pause_required, "expedition pauses the owner's input pipeline")
+	expedition._on_menu(3)
+	check(view.player_menu.visible and host._current.state == &"SUSPENDED" and expedition._current.pause_required,
+		"opening settings from the expedition pauses the owner's input pipeline")
+	view.player_menu.save_requested.emit()
+	check("сохранён" in view.player_menu._status.text and expedition._ledger.has_checkpoint(), "manual save also writes the expedition checkpoint")
+	view.player_menu.closed.emit()
 	expedition.request_resume()
 	check(host._current.state == &"REST" and expedition._current.state == &"REST", "explicit resume shares the owner's neutral command")
 	await capture("quiet-signal-campaign")
@@ -416,7 +502,7 @@ func check_quiet_signal() -> void:
 	scene._purge.pressed.emit()
 	if host._playing:
 		activate_input()
-		turn_valve(3)
+		turn_valve()
 	check(scene.world.data.weather_event.is_empty() and model.data.water == water, "purge clears dust without charging or granting water")
 	check(not scene.world.next_station_event().is_empty() and scene.world.data.weather_event == "vent", "next station event reveals geothermal crystals")
 	go(8)
@@ -424,7 +510,7 @@ func check_quiet_signal() -> void:
 	var silica := int(scene.world.data.silica)
 	collect(0)
 	check(scene.world.data.silica == silica + 4 and scene.world.data.weather_event.is_empty(), "vent adds one extra crystal payout")
-	check("следы" in scene.world.next_station_event() and scene.world.data.weather_event.is_empty(), "fauna event is a short story beat")
+	check(scene.world.next_station_event() == "tracks" and scene.world.data.weather_event.is_empty(), "fauna event is a short story beat")
 	await process_frame
 
 func tap_plot(index: int) -> void:
@@ -467,12 +553,15 @@ func collect(index: int) -> void:
 	settle()
 
 func go(target: int) -> void:
-	var count: int = absi(scene.room - target)
-	for i in range(count):
-		if target > scene.room and scene._right.visible: scene._right.pressed.emit()
-		elif target < scene.room and scene._left.visible: scene._left.pressed.emit()
+	if scene.room != target:
+		scene._map_button.pressed.emit()
+		check(scene._map.visible and not scene._map._nodes[target].disabled, "system or expedition is selectable")
+		if scene._map.visible and not scene._map._nodes[target].disabled:
+			scene._map._nodes[target].pressed.emit()
 		if scene.mode == "chapter": scene._finish_cut()
 	check(scene.room == target, "navigate to room %d" % target)
+	if target < 6:
+		check(scene.art.room == (3 if target == 3 else 0), "ship systems reuse the two physical rooms")
 
 func activate_input() -> void:
 	host.request_resume()
@@ -485,28 +574,31 @@ func sample(a: float, b: float, frames: int) -> void:
 		host._pipeline.submit(host._source.sample(now,a,b,true),now)
 		host.update_host(now,0.05,false)
 
-func turn_valve(count: int) -> void:
-	if host.repair_task.level_id == "repair-1":
-		for i in range(160):
+func turn_valve() -> void:
+	if host.repair_task.level_id == "repair-1" and not host.repair_task.drill:
+		for i in range(340):
 			if not host._playing: break
-			sample(0, 1 if host.repair_task._value < 0.70 else 0, 1)
+			var band: Vector2 = host.repair_task.PRESSURE_BANDS[host.repair_task._stage]
+			sample(0, 1 if host.repair_task._value < (band.x + band.y) * 0.5 else 0, 1)
 		check(not host._playing, "short digital pulses and rest can regulate pressure")
 		return
+	var count: int = host.repair_task._stroke_count()
 	for i in range(count):
-		sample(1 if i % 2 else 0, 0 if i % 2 else 1, 38)
-		sample(0,0,6)
+		var open: bool = host.repair_task._stroke_direction() == &"OPEN"
+		sample(1 if open else 0, 0 if open else 1, 62)
+		sample(0,0,10)
 	check(not host._playing, "valve releases complete")
 
 func phase_lock() -> void:
-	for target in [0.68,0.40]:
+	for target in host.repair_task.ROTOR_CENTERS:
 		for i in range(100):
 			if not host._playing or host.repair_task._value >= target - 0.025: break
 			sample(1,0,1)
 		for i in range(100):
 			if not host._playing or host.repair_task._right_phase <= target + 0.025: break
 			sample(0,1,1)
-		sample(0,0,8)
-	check(not host._playing, "two phase windows complete")
+		sample(0,0,26)
+	check(not host._playing, "four phase windows complete")
 
 func salvage(show_capture := false) -> void:
 	use("job")
@@ -519,16 +611,21 @@ func salvage(show_capture := false) -> void:
 		sample(0,0,18)
 	sample(0,1,8)
 	sample(0,0,3)
-	sample(0,1,17)
-	sample(0,0,22)
-	sample(1,0,2)
+	sample(0,1,33)
+	sample(0,0,26)
+	sample(1,0,31)
 	check(not host._playing, "grip, lift, neutral and weld finish salvage")
 
 func capture(name: String) -> void:
 	if not "--capture" in OS.get_cmdline_user_args(): return
+	var was_foreground: bool = host._foreground
 	scene.art.queue_redraw()
 	await process_frame
 	await process_frame
 	await RenderingServer.frame_post_draw
 	DirAccess.make_dir_recursive_absolute("res://work/campaign")
 	root.get_texture().get_image().save_png("res://work/campaign/" + name + ".png")
+	# Keep the scripted campaign independent of desktop focus changes during capture.
+	# The prototype smoke checks suspension and recovery through notifications.
+	if host._foreground != was_foreground:
+		host.set_foreground(was_foreground)

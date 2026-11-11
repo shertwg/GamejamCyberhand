@@ -169,7 +169,7 @@ func _begin_input_stream() -> void:
 
 
 ## Public contract methods called by UI / Astra
-func start_current_mission() -> void:
+func start_current_mission(arm_fresh_manual := false) -> void:
 	if not _foreground:
 		return
 	_playing = false
@@ -186,6 +186,8 @@ func start_current_mission() -> void:
 	_last_status_key = ""
 	_update_status()
 	mission_started.emit(_level_id, _level_cfg)
+	# The player explicitly chose the repair. Only this fresh manual stream can arm here.
+	if arm_fresh_manual: request_resume()
 
 
 func select_level(level_id: String) -> void:
@@ -244,10 +246,10 @@ func set_expedition_input(enabled: bool) -> void:
 	_expedition_input = enabled
 	if enabled:
 		_begin_input_stream()
-	suspend_expedition_input()
+	suspend_current_input()
 
 
-func suspend_expedition_input() -> void:
+func suspend_current_input() -> void:
 	_channel_a = 0.0
 	_channel_b = 0.0
 	_pipeline.suspend()

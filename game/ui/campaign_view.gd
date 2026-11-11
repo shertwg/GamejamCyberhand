@@ -6,6 +6,7 @@ signal resume_requested
 signal exit_requested
 signal hand_requested
 signal quiet_signal_requested
+signal menu_requested
 
 const Art = preload("res://game/ui/crash_art.gd")
 const State = preload("res://game/station/station_state.gd")
@@ -16,12 +17,11 @@ const MapView = preload("res://game/ui/expedition_map.gd")
 const Sound = preload("res://game/ui/campaign_audio.gd")
 const Opening = preload("res://game/ui/opening_timeline.gd")
 const LifeSupportHUD = preload("res://game/ui/life_support_hud.gd")
+const CargoInventory = preload("res://game/ui/cargo_inventory.gd")
 const GardenPlots = preload("res://game/ui/garden_plots.gd")
 const ROOMS = World.ROOMS
-const CHAPTER_LINES := ["Маяк: фильтр держит. Возьми образец в ущелье.",
-	"Маяк: буря уже на хребте. Держи руку ровно.",
-	"Орбита: сигнал получен. Ваш коридор открыт.",
-	"Рейнджер: я думал, мы останемся здесь. Пора домой."]
+const Journal = preload("res://game/ui/ship_journal.gd")
+const CHAPTER_ENTRIES := ["threshold", "storm", "answer", "epilogue"]
 var station: State
 var world: World
 var nav := Navigation.new()
@@ -29,8 +29,13 @@ var sound := Sound.new()
 var _map: MapView
 var _supplies: LifeSupportHUD
 var _map_button: Button
-var _mute: Button
-var _replay: Button
+var _menu: Button
+var _journal_button: Button
+var _journal: Journal
+var journal_open: bool:
+	get: return is_instance_valid(_journal) and _journal.visible
+var menu_open := false
+var reduce_motion := false
 var _liner: Button
 var _cell: Button
 var _stabilizer: Button
@@ -41,7 +46,7 @@ var _scrap: Button
 var _purge: Button
 var _crop := "greens"
 var _refill_buttons: Dictionary = {}
-var _bag_panel: Panel
+var _bag_panel: CargoInventory
 var _arrival: Callable
 var _chapter_cut := 0
 var _shift_time := 0.0
@@ -53,20 +58,20 @@ var foreground := true:
 	set(value):
 		foreground = value
 		if art != null:
-			art.foreground = value
-		if sound.is_node_ready(): sound.pause_audio(not value)
+			art.foreground = value and not menu_open and not journal_open
+		if is_instance_valid(device): device.set_process(value and not menu_open and not journal_open)
+		if sound.is_node_ready(): sound.pause_audio(not value or menu_open or journal_open)
 var art: Art
 var device: Control
 var _action: Button
 var _left: Button
 var _right: Button
 var _bag: Button
-var _hand: Button
 var _exit: Button
 var _resume: Button
 var _title: Label
 var _hint: Label
-var _stock: Label
+var _objective: Label
 var _toast: Label
 var _story := ""
 var _toast_left := 0.0
@@ -84,37 +89,32 @@ func _ready() -> void:
 	art = Art.new()
 	add_child(art)
 	art.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	_bag_panel = Panel.new()
-	_bag_panel.mouse_filter = MOUSE_FILTER_IGNORE
-	var backing := StyleBoxFlat.new()
-	backing.bg_color = Color("141521f2")
-	backing.border_color = Color("786050")
-	backing.set_border_width_all(2)
-	backing.shadow_color = Color("090a12cc")
-	backing.shadow_size = 5
-	_bag_panel.add_theme_stylebox_override("panel", backing)
+	_bag_panel = CargoInventory.new()
 	add_child(_bag_panel)
+	_bag_panel.dismissed.connect(_toggle_bag)
+	_bag_panel.item_chosen.connect(func(_key): _refresh_refill_buttons())
 	_title = make_label(19, "eee1d5")
 	_hint = make_label(17, "fff1d8")
-	_stock = make_label(14, "b1d8db")
-	_stock.add_theme_constant_override("line_spacing", 1)
+	_objective = make_label(16, "ffe0ac")
 	_toast = make_label(16, "f5ca9a")
 	_action = make_button("", _activate)
-	_left = make_button("", func(): _enter(room - 1))
-	_right = make_button("", func(): _enter(room + 1))
-	_bag = make_button("Запасы", _toggle_bag)
-	_hand = make_button("Левая / правая рука", func(): hand_requested.emit())
+	_left = make_button("На корабль", func(): _enter(0))
+	_right = make_button("", _follow_objective)
+	_bag = make_button("Склад", _toggle_bag)
+	_menu = make_button("Меню", func(): menu_requested.emit())
+	_journal_button = make_button("Журнал", _open_journal)
+	_journal = Journal.new()
+	add_child(_journal)
+	_journal.visibility_changed.connect(func():
+		if not _journal.visible: _journal_button.release_focus()
+		foreground = foreground)
 	_exit = make_button("В отсек", func(): exit_requested.emit())
 	_resume = make_button("Продолжить", func(): resume_requested.emit())
 	_action.add_theme_stylebox_override("normal", Assets.skin("button_hot"))
 	_resume.add_theme_stylebox_override("normal", Assets.skin("button_hot"))
 	add_child(sound)
 	art.navigator = nav
-	_map_button = make_button("Карта", _toggle_map)
-	_mute = make_button("Звук", func():
-		sound.toggle()
-		_mute.text = "Тихо" if sound.muted else "Звук")
-	_replay = make_button("Вступление", _begin_opening)
+	_map_button = make_button("План", _toggle_map)
 	_liner = make_button("Подкладка · 3кр + 2дет", func():
 		if world.craft("liner"):
 			sound.fx("craft")
@@ -138,16 +138,21 @@ func _ready() -> void:
 		if foreground and _purge.visible: job_requested.emit("repair-1"))
 	for recipe_button in [_liner, _cell, _stabilizer, _greenhouse_upgrade]:
 		recipe_button.add_theme_font_size_override("font_size", 14)
+		recipe_button.custom_minimum_size.y = 44
+		recipe_button.reparent(_bag_panel.actions, false)
 	for key in State.SUPPLY_PER_UNIT:
 		var button := make_button("%s +%d п. п." % [State.NAMES[key], State.SUPPLY_PER_UNIT[key]], _refill.bind(key))
 		button.tooltip_text = "Перенести 1 единицу со склада в систему корабля"
+		button.custom_minimum_size.y = 44
+		button.size_flags_horizontal = SIZE_EXPAND_FILL
+		button.reparent(_bag_panel.transfer, false)
 		_refill_buttons[key] = button
 	_supplies = LifeSupportHUD.new()
 	add_child(_supplies)
 	_map = MapView.new()
 	add_child(_map)
 	_map.room_chosen.connect(func(id):
-		if id in world.data.discovered: _enter(id))
+		_enter(id))
 	_map.quiet_signal_requested.connect(func(): quiet_signal_requested.emit())
 	_map.dismissed.connect(func():
 		_map.hide()
@@ -159,17 +164,18 @@ func bind(model: State, levels: Array) -> void:
 	art.station = model
 	_supplies.station = station
 	world = World.new(station)
+	_restore_dialogue()
 	nav.enter(0,0)
 	unlocked = levels
 	station.changed.connect(refresh)
 	if not station.data.intro_seen:
 		_begin_opening()
 	else:
-		sound.room(0,station.data.signal)
+		_enter(clampi(int(station.data.saved_room), 0, ROOMS.size() - 1))
 	refresh()
 
 func _process(delta: float) -> void:
-	if station == null or not foreground: return
+	if station == null or not foreground or menu_open or journal_open: return
 	if _bag_panel.visible and room < 6:
 		_refresh_refill_buttons()
 	if _transition > 0:
@@ -179,7 +185,7 @@ func _process(delta: float) -> void:
 		var previous_footfall := nav.footfall
 		nav.advance(delta)
 		if nav.footfall != previous_footfall:
-			sound.footstep(room, nav.depth())
+			sound.footstep(art.room, nav.depth())
 		if not nav.moving and _arrival.is_valid():
 			var action := _arrival
 			_arrival = Callable()
@@ -200,8 +206,7 @@ func _process(delta: float) -> void:
 				art.shot = id
 				refresh()
 			art.age = _intro_clock - Opening.TIMECODES[frame]
-			var line := Opening.subtitle_at(_intro_clock)
-			if _hint.text != line: _hint.text = line
+			_log_opening_through(_intro_clock)
 	elif mode in ["takeoff","chapter"]:
 		_intro_clock += minf(delta, 0.1)
 		var duration := 4.6 if mode == "chapter" else 5.0
@@ -231,14 +236,15 @@ func _begin_opening() -> void:
 func _finish_cut() -> void:
 	var previous := mode
 	if previous == "intro":
+		_log_opening_through(Opening.DURATION)
 		station.finish_intro()
 		sound.stop_opening()
 		art.opening = false
 	mode = "room"
 	art.shot = -1
 	if previous == "chapter":
-		sound.room(room,station.data.signal)
-		if _chapter_cut == 0: sound.say("ravine")
+		sound.room(art.room,station.data.signal)
+		if _chapter_cut == 0: log_dialogue("ravine")
 		refresh()
 	elif previous == "intro":
 		_enter(_opening_return_room)
@@ -256,11 +262,11 @@ func chapter_scene(index: int) -> void:
 	art.shot = 5 + index
 	art.age = 0
 	sound.cue([9,12,13,14][index])
-	sound.say(["threshold","storm","answer","epilogue"][index])
+	log_dialogue(CHAPTER_ENTRIES[index])
 	refresh()
 
 func _enter(target: int) -> void:
-	if target < 0 or target >= ROOMS.size() or not foreground: return
+	if target < 0 or target >= ROOMS.size() or not foreground or menu_open: return
 	if not world.locked(target).is_empty():
 		show_room(world.locked(target))
 		return
@@ -268,25 +274,29 @@ func _enter(target: int) -> void:
 	_map.hide()
 	var direction := signi(target - room)
 	room = target
-	art.room = room
+	var previous_art: int = art.room
+	art.room = World.physical_room(room)
 	_shift_time = 0
 	_struck = false
 	art.strike_strength = 0
-	nav.enter(room,direction)
+	if previous_art != art.room:
+		nav.enter(art.room,direction)
+	else:
+		nav.walk_to(nav.feet)
 	art.age = 0.0
-	_transition = 0.28
+	_transition = 0.0 if reduce_motion or previous_art == art.room else 0.28
 	_bag_open = false
 	_story = ""
 	_toast.hide()
 	var first := world.discover(room)
-	sound.room(room,station.data.signal)
-	sound.fx("hatch")
+	sound.room(art.room,station.data.signal)
+	sound.fx("click" if previous_art == art.room else "hatch")
 	if first and room == 7:
 		chapter_scene(0)
 	elif first and room == 9:
 		chapter_scene(1)
 	elif first and room == 8:
-		sound.say("cave")
+		log_dialogue("cave")
 	refresh()
 
 func show_room(message := "") -> void:
@@ -322,14 +332,52 @@ func _update_repair_hint() -> void:
 		_hint.text = _repair_barrier if not _repair_barrier.is_empty() else _repair_hint
 		_layout()
 
+func log_dialogue(id: String, persist := true) -> void:
+	if id in world.data.dialogue or Journal.line_for(id).is_empty(): return
+	world.data.dialogue.append(id)
+	_journal_button.text = "Журнал •"
+	if persist: station.save()
+
+func _log_opening_through(seconds: float) -> void:
+	for cue in Opening.DIALOGUE_CUES:
+		if seconds >= float(cue[0]): log_dialogue(cue[2], false)
+
+func _restore_dialogue() -> void:
+	if not world.data.dialogue.is_empty(): return
+	if station.data.intro_seen: _log_opening_through(Opening.DURATION)
+	for key in ["air_ready", "pump", "generator", "beacon", "signal", "launched"]:
+		if station.data[key]:
+			log_dialogue({"air_ready":"air", "pump":"water", "signal":"answer", "launched":"home"}.get(key,key), false)
+	for flag in world.data.story_flags:
+		log_dialogue(["threshold", "storm", "answer", "epilogue", "wreck", "seam"][flag], false)
+	if 7 in world.data.discovered: log_dialogue("ravine", false)
+	if 8 in world.data.discovered: log_dialogue("cave", false)
+	if world.data.relay: log_dialogue("relay", false)
+
+func _open_journal() -> void:
+	if not foreground or menu_open or journal_open or not _journal_button.visible: return
+	_arrival = Callable()
+	_map.hide()
+	_bag_open = false
+	refresh()
+	_journal_button.text = "Журнал"
+	_journal.show_entries(world.data.dialogue, size)
+
+func _follow_objective() -> void:
+	var target: int = world.next_objective()[0]
+	if target >= 0 and target != room:
+		_enter(target)
+
 func refresh() -> void:
 	if station == null: return
+	world.available_repairs = unlocked
 	_supplies.visible = mode in ["room", "repair"]
 	_bag_panel.visible = _bag_open and mode == "room"
+	_objective.visible = mode == "room" and not _bag_open and not _map.visible
 	_refresh_refill_buttons()
 	_map_button.visible = mode == "room"
-	_mute.visible = _bag_open and mode == "room"
-	_replay.visible = _mute.visible
+	_menu.visible = mode in ["room", "repair", "intro", "chapter", "takeoff"]
+	_journal_button.visible = mode in ["room", "intro", "chapter", "takeoff"]
 	_liner.visible = _bag_open and mode == "room" and room == 2 and not world.data.liner
 	_liner.disabled = not world.can_craft("liner")
 	_cell.visible = _bag_open and mode == "room" and room == 2 and world.data.filter
@@ -350,8 +398,6 @@ func refresh() -> void:
 		_right.hide()
 		_action.hide()
 		_bag.hide()
-		_stock.hide()
-		_hand.hide()
 		_toast.hide()
 		_exit.show()
 		_layout()
@@ -360,47 +406,36 @@ func refresh() -> void:
 	_right.hide()
 	_action.hide()
 	_bag.hide()
-	_stock.hide()
-	_hand.hide()
 	_toast.hide()
 	_exit.visible = mode == "repair"
 	_resume.hide()
 	if mode in ["intro","takeoff","chapter"]:
 		_title.text = "" if mode == "intro" and art.shot != 0 else "МАЯК  /  ПОСЛЕДНИЙ СВЕТ"
-		_hint.text = Opening.subtitle_at(_intro_clock) if mode == "intro" else (CHAPTER_LINES[_chapter_cut] if mode == "chapter" else "Маяк: тяга стабильна. Теперь — домой.")
+		_hint.text = ""
 		_action.text = "Пропустить"
 		_verb = "skip"
 		_action.disabled = false
 		_action.show()
 		_layout()
 		return
-	_title.text = "%02d   %s" % [room+1, ROOMS[room]]
+	_title.text = World.ROOMS[room] if room == art.room else "Рубка  /  " + World.ROOMS[room]
 	_bag.show()
-	_hand.visible = _bag_open
-	_stock.visible = _bag_open
-	_stock.text = "Детали %d · Вода %d · Заряд %d · Еда %d · Предохр. %d · Катушки %d" % [
-		station.data.parts, station.data.water, station.data.energy, station.data.food, station.data.fuses, station.data.coils]
-	_stock.text += "\nРуда %d · Кристаллы %d · Сплав %d" % [world.data.ore,world.data.silica,world.data.alloy]
-	_stock.text += "\nПри ≤25% биосад растёт медленнее"
-	if room < 6: _stock.text += "\nПополнение системы · 1 ед. со склада"
-	if not world.data.last.is_empty():
-		_stock.text += "\nПоследний ремонт: %.1f с · отпусканий %d · промахов %d" % [
-			float(world.data.last.get("seconds",0)),int(world.data.last.get("releases",0)),int(world.data.last.get("mistakes",0))]
-		_stock.text += "\nДва канала вместе: %.2f с" % (float(world.data.last.get("both_ms",0))/1000)
-		if world.data.best_relay >= 0:
-			_stock.text += " · Рекорд ретранслятора: %d" % world.data.best_relay
+	if _bag_open:
+		_bag_panel.update_cargo(station.data, world.data)
 	_refresh_deposits()
 	if _map.visible: _map.update_map(world,room)
-	_left.visible = room > 0
-	_right.visible = room < ROOMS.size() - 1 and world.locked(room + 1).is_empty()
-	var target: int = world.next_objective()[0]
-	if _left.visible: _left.text = ("◆  " if target >= 0 and target < room else "‹  ") + ROOMS[room-1]
-	if _right.visible: _right.text = ROOMS[room+1] + ("  ◆" if target > room else "  ›")
+	var objective := world.next_objective()
+	var target: int = objective[0]
+	_objective.text = "%s  ·  %s" % [World.CHAPTERS[world.chapter()][0], objective[1]]
+	_left.visible = room >= 6 and not _map.visible
+	_right.visible = target >= 0 and target != room and not _map.visible
+	if _right.visible: _right.text = "К задаче   ◆"
 	_toast.text = _story if station.save_ok else "Не удалось записать сохранение"
-	_toast.visible = _toast_left > 0 or not station.save_ok
+	_toast.visible = (not _bag_open and not _map.visible and _toast_left > 0) or not station.save_ok
 	_room_action()
+	if art.room == 0: art.restored = station.data.air_ready
 	_scrap.visible = room == 2 and _verb != "job" and not _bag_open and not _map.visible
-	if _bag_open:
+	if _bag_open or _map.visible:
 		_action.hide()
 		_left.hide()
 		_right.hide()
@@ -415,28 +450,26 @@ func _room_action() -> void:
 		0:
 			art.restored = d.air_ready
 			if not d.air_ready:
-				_offer_job("Закрыть заслонку", "Маяк: корпус пробит. Сначала перекрой воздуховод.", "tutorial")
+				_offer_job("Закрыть заслонку", "Корпус пробит. Перекрой воздуховод.", "tutorial")
 			elif d.launched:
 				_offer("", "Полёт домой. Отсеки доступны в свободном режиме.", "")
-			elif d.signal and world.data.relay:
-				_offer_cost("Взлететь", State.LAUNCH_COST, "launch")
 			elif d.signal:
-				_offer("", "Нужен маршрут через грозу. Почини ретранслятор на хребте.", "")
+				_offer_cost("Взлететь", State.LAUNCH_COST, "launch")
 			else:
-				_offer("", "Маяк: связь молчит. Иди в гидроузел.", "")
+				_offer("", "", "")
 		1:
 			art.restored = d.pump
 			_offer_job("Наполнить бак" if d.pump else "Открыть клапан", "Каждый прогон: до +24 п. п. воды и 3 канистры." if d.pump else "Жара растёт. Верни воду в контур.", "repair-1")
 		2:
 			art.restored = d.fuses > 0 or d.coils > 0
-			if not world.data.shield and world.can_craft("shield"):
-				_world_recipe("Экран для антенны","shield")
-			elif world.data.alloy == 0 and not world.data.stabilizer and world.can_craft("alloy"):
-				_world_recipe("Выплавить сплав","alloy")
-			elif not d.beacon and d.fuses == 0 and d.coils == 0 and station.can_pay({"parts": 2, "energy": 1}):
+			if not d.beacon and d.fuses == 0 and d.coils == 0 and station.can_pay({"parts": 2, "energy": 1}):
 				_offer_cost("Собрать предохранитель", {"parts": 2, "energy": 1}, "fuses")
 			elif d.generator and not d.beacon and d.fuses > 0 and d.coils == 0 and station.can_pay({"parts": 3}):
 				_offer_cost("Намотать катушку", {"parts": 3, "fuses": 1}, "coils")
+			elif not world.data.shield and world.can_craft("shield"):
+				_world_recipe("Экран для антенны","shield")
+			elif not world.data.shield and world.data.alloy == 0 and world.can_craft("alloy"):
+				_world_recipe("Выплавить сплав","alloy")
 			else:
 				_offer_job("Разобрать обломки", "Добыча: детали и заряд.", "tutorial")
 		3:
@@ -463,13 +496,12 @@ func _room_action() -> void:
 				var missing := "Нужна катушка из мастерской." if d.coils == 0 else ""
 				if not d.generator: missing = "Сначала собери реактор."
 				_offer_cost("Подключить антенну", State.BUILD_COSTS.beacon, "beacon", missing)
+			elif not d.signal and "repair-3" not in unlocked:
+				_offer("", "Антенне нужен стабильный ток. Синхронизируй реактор.", "")
 			elif not d.signal:
-				if world.data.relay:
-					_offer_job("Настроить частоту", "Поймай сигнал с хребта.", "repair-3")
-				else:
-					_offer("", "Антенна готова. Нужен ретранслятор на хребте.", "")
+				_offer_job("Настроить частоту", "Поймай ответ орбитального патруля.", "repair-3")
 			else:
-				_offer_job("Проверить частоту", "Маяк: сигнал принят. В рубке можно готовить взлёт.", "repair-3")
+				_offer_job("Проверить частоту", "Сигнал принят. В рубке можно готовить взлёт.", "repair-3")
 
 		6:
 			art.restored = world.data.filter
@@ -513,10 +545,10 @@ func _offer(title: String, hint: String, verb: String) -> void:
 	_hint.text = hint
 
 func _activate() -> void:
-	if not foreground: return
+	if not foreground or menu_open: return
 	if mode == "room":
 		var intended := _verb
-		var target := Vector2(193,194)
+		var target := Vector2(float([193, 117, 153, 193, 236, 273][room]) if room < 6 else 193.0, 194)
 		_arrival = func():
 			if _verb == intended and mode == "room": _perform()
 		if not nav.walk_to(target): _arrival = Callable()
@@ -538,10 +570,11 @@ func _perform() -> void:
 		"garden", "generator", "beacon":
 			var module := _verb
 			if station.build(module, module == "beacon"):
+				if module in ["generator", "beacon"]: log_dialogue(module)
 				sound.fx("craft")
 				var note: String = {"garden": "Биосад работает",
-					"generator": "Маяк: реактор собран. Осталось синхронизировать его.",
-					"beacon": "Маяк: катушка на месте. Попробуем докричаться до орбиты."}[module]
+					"generator": "Реактор собран. Синхронизируй контур.",
+					"beacon": "Катушка установлена. Настрой антенну."}[module]
 				show_room(note)
 		"plant":
 			_tend_bed(station.data.beds.find(-1.0))
@@ -554,7 +587,7 @@ func _perform() -> void:
 				art.shot = 4
 				art.age = 0.0
 				sound.cue(14)
-				sound.say("home")
+				log_dialogue("home")
 				refresh()
 
 func _refresh_deposits() -> void:
@@ -567,7 +600,7 @@ func _refresh_deposits() -> void:
 		art.resource_points.append([item[0],world.remaining(room,i) == 0,hue,sprite])
 
 func _gui_input(event: InputEvent) -> void:
-	if mode != "room" or not foreground or _map.visible or _bag_open: return
+	if mode != "room" or not foreground or menu_open or journal_open or _map.visible or _bag_open: return
 	var point: Vector2
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and event.device != InputEvent.DEVICE_ID_EMULATION:
 		point = event.position
@@ -610,16 +643,14 @@ func queue_collect(index: int) -> void:
 			if flag >= 0 and flag not in world.data.story_flags:
 				world.data.story_flags.append(flag)
 				station.save()
-				sound.say("wreck" if flag == 4 else "seam")
-				reward += " · " + ("Рейнджер: здесь уже падал корабль." if flag == 4 else
-					"Рейнджер: кто-то прятал оборудование от грозы.")
+				log_dialogue("wreck" if flag == 4 else "seam")
 			show_room(reward)
 		else:
 			show_room("Залежь пустая. Осталось %d с." % ceili(world.remaining(room,index)))
 	if not nav.walk_to(nodes[index][0]): _arrival = Callable()
 
 func _toggle_map() -> void:
-	if mode != "room": return
+	if mode != "room" or menu_open: return
 	sound.fx("click")
 	_arrival = Callable()
 	_map.visible = not _map.visible
@@ -648,6 +679,7 @@ func _update_storm() -> void:
 			show_room("Разряд! Ты укрылся у входа. Запасы целы.")
 
 func _toggle_bag() -> void:
+	if menu_open: return
 	sound.fx("click")
 	_bag_open = not _bag_open
 	if _bag_open: _map.hide()
@@ -711,12 +743,14 @@ func _tend_bed(index: int) -> void:
 			art.garden.reward_index = index
 			art.garden.reward_time = art.age
 			art.garden.reward_yield = amount
-			if station.data.harvests == 1: show_room("Улучшение биосада в «Запасах»")
+			show_room("Урожай +%d · Улучшение на складе" % amount if station.data.harvests == 1 else "Урожай +%d" % amount)
+	else:
+		show_room("До урожая · ≈%d с" % ceili(station.grow_seconds(index) - elapsed))
 
 func _refresh_refill_buttons() -> void:
 	for key in _refill_buttons:
 		var button: Button = _refill_buttons[key]
-		button.visible = _bag_panel.visible and room < 6
+		button.visible = _bag_panel.visible and room < 6 and _bag_panel.selected == key
 		button.disabled = not station.can_refill_from_stock(key)
 
 func _layout() -> void:
@@ -727,42 +761,28 @@ func _layout() -> void:
 	var w := f.size.x - 24
 	var bottom := f.end.y - 10
 	if mode == "room":
-		place(_title, Vector2(x + 96, top), Vector2(w - 192, 31))
+		place(_title, Vector2(x + 166, top), Vector2(maxf(50.0, w - 366), 31))
 	else:
-		place(_title, Vector2(x, top), Vector2(w - 95, 31))
+		place(_title, Vector2(x + 81, top), Vector2(w - 195, 31))
 	place(_bag, Vector2(x+w-96, top), Vector2(96, 47))
-	place(_map_button, Vector2(x,top),Vector2(86,47))
+	place(_menu, Vector2(x,top),Vector2(75,47))
+	place(_journal_button, Vector2(x + 81, bottom - 47), Vector2(99, 47))
+	if mode == "room": place(_journal_button, Vector2(x + w - 195, top), Vector2(95,47))
+	place(_map_button, Vector2(x+81,top),Vector2(81,47))
 	var supply_w := minf(w, 444.0)
 	place(_supplies, Vector2(roundf(x+(w-supply_w)*0.5), top+43), Vector2(supply_w, 35))
 	place(_seed_picker, Vector2(x+w-145,top+84),Vector2(145,43))
 	place(_equipment, Vector2(x+w-162,top+84),Vector2(162,43))
 	place(_scrap, Vector2(x+w-196,top+84),Vector2(196,43))
 	place(_purge, Vector2(x,top+84),Vector2(144,43))
-	var bag_width := minf(w, 646.0)
-	var bag_x := roundf(x + (w - bag_width) * 0.5)
-	var columns := 3 if bag_width >= 480 else 2
-	var slot := floorf((bag_width - 28.0 - (columns - 1) * 6.0) / columns)
-	var stock_height := 140.0 if world != null and not world.data.last.is_empty() else 98.0
-	if room < 6: stock_height += 21.0
-	var toast_top := top + 90.0 + stock_height
-	var item_top := toast_top + 34.0
-	var visible_items := 0
-	var bag_items := _refill_buttons.values() + [_hand, _mute, _replay, _liner, _cell, _stabilizer, _greenhouse_upgrade]
-	for item in bag_items:
-		if not item.visible: continue
-		var column := visible_items % columns
-		var row := floori(float(visible_items) / columns)
-		place(item, Vector2(bag_x + 14 + column * (slot + 6), item_top + row * 48), Vector2(slot,44))
-		visible_items += 1
-	var rows := ceili(float(visible_items) / columns)
-	place(_bag_panel, Vector2(bag_x, top+81), Vector2(bag_width, item_top + rows * 48 + 8 - (top+81)))
+	var bag_width := minf(w, 696.0)
+	place(_bag_panel, Vector2(x+(w-bag_width)*0.5, top+81), Vector2(bag_width,maxf(235.0,bottom-top-81)))
 	_liner.tooltip_text = world.price("liner") if world != null else ""
 	var map_w := minf(w,870.0)
-	place(_map,Vector2(x+(w-map_w)*0.5,top+82),Vector2(map_w,260))
+	place(_map,Vector2(x+(w-map_w)*0.5,top+82),Vector2(map_w,maxf(230.0,bottom-top-82)))
 	place(_exit, Vector2(x+w-90, top), Vector2(90, 36))
-	place(_stock, Vector2(bag_x+14, top+88), Vector2(bag_width-28, stock_height))
-	place(_toast, Vector2(x if not _bag_open else bag_x+14, top+79 if not _bag_open else toast_top),
-		Vector2(w if not _bag_open else bag_width-28, 34))
+	place(_objective, Vector2(x,top+81), Vector2(w,46))
+	place(_toast, Vector2(x,top+124), Vector2(w,38))
 	var action_width := minf(w, 318)
 	var nav_width := minf(200.0, w * 0.47)
 	place(_left, Vector2(x, bottom-47), Vector2(nav_width, 47))
@@ -775,8 +795,9 @@ func _layout() -> void:
 		place(_hint, Vector2(x,bottom-43),Vector2(w,40))
 	if mode == "repair":
 		# Repair touch pads sit in a separate strip below the picture.
-		place(_hint, Vector2(x, bottom-37), Vector2(w, 39))
-		place(_resume, Vector2(x+(w-action_width)*0.5,bottom-84),Vector2(action_width,42))
+		var repair_hint_h := 61 if _hint.get_theme_font_size("font_size") > 17 else 43
+		place(_hint, Vector2(x, bottom-repair_hint_h), Vector2(w, repair_hint_h))
+		place(_resume, Vector2(x+(w-action_width)*0.5,bottom-repair_hint_h-43),Vector2(action_width,42))
 		if is_instance_valid(device):
 			place(device, f.position + f.size * Vector2(0.17,0.16), f.size * Vector2(0.66,0.65))
 
@@ -820,6 +841,9 @@ func make_button(title: String, action: Callable) -> Button:
 
 func _button_motion(node: Button, target: Color) -> void:
 	_stop_button_motion(node)
+	if reduce_motion:
+		node.self_modulate = target
+		return
 	var tween := node.create_tween()
 	node.set_meta("motion", tween)
 	tween.tween_property(node, "self_modulate", target, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -832,3 +856,19 @@ func _stop_button_motion(node: Button) -> void:
 func place(node: Control, position: Vector2, dimensions: Vector2) -> void:
 	node.position = position
 	node.size = dimensions
+
+func apply_accessibility(large_text: bool, less_motion: bool) -> void:
+	reduce_motion = less_motion
+	art.reduce_motion = less_motion
+	_hint.add_theme_font_size_override("font_size", 22 if large_text else 17)
+	_toast.add_theme_font_size_override("font_size", 20 if large_text else 16)
+	_objective.add_theme_font_size_override("font_size", 19 if large_text else 16)
+	_bag_panel.set_large_text(large_text)
+	_journal.body.add_theme_font_size_override("normal_font_size", 21 if large_text else 17)
+	_supplies.large_text = large_text
+	_supplies.queue_redraw()
+	if is_instance_valid(device): device.reduce_motion = less_motion
+	if less_motion:
+		_transition = 0.0
+		art.modulate = Color.WHITE
+	_layout()

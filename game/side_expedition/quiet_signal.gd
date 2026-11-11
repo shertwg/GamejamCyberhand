@@ -10,6 +10,7 @@ signal location_entered(location_id: String, entry_line: String)
 signal checkpoint_changed(checkpoint: Dictionary)
 signal input_pause_requested
 signal input_resume_requested
+signal settings_requested
 
 const Model = preload("res://game/side_expedition/expedition_model.gd")
 const View = preload("res://game/side_expedition/expedition_view.gd")
@@ -47,6 +48,7 @@ var _skip_frame: bool = true
 var _run_counter: int = 0
 var _completed_emitted: bool = false
 var _mirrored: bool = false
+var _large_text := false
 var _view
 var _pad
 var _title: Label
@@ -118,6 +120,7 @@ func _build_ui() -> void:
 	menu.get_popup().add_item("Вернуться к шлюзу с добычей", 0)
 	menu.get_popup().add_item("Новый заход — детали доступны заново", 1)
 	menu.get_popup().add_item("Продолжить сохранённый заход", 2)
+	if external_input_mode: menu.get_popup().add_item("Меню и настройки игры", 3)
 	menu.about_to_popup.connect(func(): suspend_input(); _save_checkpoint())
 	menu.get_popup().id_pressed.connect(_on_menu)
 	header.add_child(menu)
@@ -150,6 +153,8 @@ func _build_ui() -> void:
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tasks.add_child(_hint)
 	_pad = Pad.new()
+	_pad.compact = true
+	_pad.lever_mode = true
 	if input_config != null:
 		_pad.set_thresholds(input_config.on_a, input_config.off_a, input_config.on_b, input_config.off_b)
 	_pad.channels_changed.connect(_input.set_touch_channels)
@@ -175,6 +180,7 @@ func _build_ui() -> void:
 	_journal.ok_button_text = "Закрыть журнал"
 	_journal.dialog_autowrap = true
 	add_child(_journal)
+	_journal.visibility_changed.connect(_refresh)
 	_journal_body = RichTextLabel.new()
 	_journal_body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_journal_body.offset_left = 12
@@ -211,15 +217,21 @@ func _layout() -> void:
 	_box.add_theme_constant_override("separation", 5 if compact else 8)
 	_subtitle.visible = not compact
 	_keyboard_hint.visible = not compact
-	_hint.visible = not compact
+	_hint.visible = not compact or _large_text
 	_title.add_theme_font_size_override("font_size", 18 if compact else 25)
-	_objective.add_theme_font_size_override("font_size", 13 if compact else 17)
+	_objective.add_theme_font_size_override("font_size", 19 if _large_text else (13 if compact else 17))
+	_hint.add_theme_font_size_override("font_size", 17 if _large_text else 13)
 	_view.custom_minimum_size.y = 96 if compact else 170
 	_pad.custom_minimum_size.y = 64 if compact else 92
 	_pad.set_mirrored(_mirrored)
 	_pad.visible = not external_input_mode
 	_keyboard_hint.visible = not compact and not external_input_mode
 	_hand.visible = not external_input_mode
+
+func apply_accessibility(large_text: bool, less_motion: bool) -> void:
+	_large_text = large_text
+	_view.reduce_motion = less_motion
+	_layout()
 
 func _process(delta: float) -> void:
 	update_host(_now(), delta)
@@ -341,18 +353,23 @@ func report_storage_error(message: String) -> void:
 	_save_message = message
 	_refresh()
 
-func _save_checkpoint() -> void:
+func _save_checkpoint() -> bool:
 	_last_checkpoint_ms = Time.get_ticks_msec()
-	if _ledger == null or _restoring or _completed_emitted or model.stage == "briefing": return
+	if _ledger == null or _restoring or _completed_emitted or model.stage == "briefing": return true
 	var value: Dictionary = model.checkpoint()
-	_ledger.save_checkpoint(value)
+	var saved: bool = _ledger.save_checkpoint(value)
 	checkpoint_changed.emit(value.duplicate(true))
+	return saved
+
+func save_progress() -> bool:
+	return _save_checkpoint()
 
 func _on_menu(id: int) -> void:
 	match id:
 		0: model.request_return(); _save_checkpoint()
 		1: _ledger.save_checkpoint({}); start_expedition()
 		2: resume_saved()
+		3: settings_requested.emit()
 	_refresh()
 
 func _exit_tree() -> void:
@@ -457,6 +474,8 @@ func _open_journal() -> void:
 	var entries: PackedStringArray = []
 	for entry in model.journal:
 		entries.append("%s\n%s" % [entry.title, entry.body])
+	for line in model.radio_lines:
+		entries.append("Маяк / связь\n" + line)
 	_journal_body.text = "\n\n".join(entries) if not entries.is_empty() else "Первый сигнал ещё не найден."
 	_journal_body.scroll_to_line(0)
 	_journal.popup_centered(Vector2i(int(minf(size.x - 40, 760)), int(minf(size.y - 40, 460))))
@@ -510,8 +529,6 @@ func _refresh() -> void:
 		_hint.text = "Переборка ущелья: измени высоту. Контакт не отнимает батарею."
 	elif model.trial_feedback() != "":
 		_hint.text = model.trial_feedback()
-	elif model.entry_line != "":
-		_hint.text = "Маяк: " + model.entry_line
 	else:
 		_hint.text = "Покой — безопасная остановка."
 	for i in range(_chips.size()):
